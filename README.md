@@ -47,13 +47,14 @@ Just open the same URL on the other device, click **⚙ Settings**, and paste yo
 
 ## Features
 
-- **Timeline view** sorted by recent activity, with a colored dot per status
-- **Map view** showing projects pinned to Philly neighborhoods (auto-geocoded for common neighborhoods)
-- **Filters** by category (Transportation, Development, Parks, Trials, Politics, Sports, Events, Other) and by status (Proposed → Completed)
+- **Timeline view** sorted by recent activity; status conveyed by dot shape/fill (hollow, dashed, filled, half, check, X) rather than 8 different colors
+- **Map view** with cream-toned tiles to match the editorial theme, plus terracotta pins for active projects (sage for completed, gray for cancelled)
+- **Filters** by category and status
 - **Search** across project names, descriptions, and locations
 - **Sort** by recent updates, creation date, target completion, or status
-- **Project detail view** showing description, meta, your manual update log, attached links, and auto-fetched news
+- **Project detail view** with description, meta grid, manual update log, attached links, and auto-fetched news
 - **Add updates** as you go — captured as issue comments so they're version-controlled
+- **✦ Auto-fill (optional)** — when you set an Anthropic API key in Settings, the Add Project form gets an auto-fill button. Type a project name, click it, and Claude looks it up on the web and pre-fills category, status, description, dates, location, search terms, and links. Review and edit anything before saving.
 
 ## Adding a project
 
