@@ -34,7 +34,7 @@ Respond with ONLY a JSON object — no markdown fences, no prose before or after
   "description": "<2-3 sentence factual summary>",
   "startDate": "<YYYY-MM-DD or empty string>",
   "completionDate": "<YYYY-MM-DD estimated completion or empty string>",
-  "location": "<Philly neighborhood or street address>",
+  "location": "<most specific location possible — full street address preferred, then intersection, then neighborhood>",
   "searchTerms": "<comma-separated phrases useful for tracking future news>",
   "links": ["<2-4 relevant URLs: official source, Wikipedia, recent news articles>"],
   "phases": [
@@ -51,6 +51,13 @@ For "phases": list every major dated milestone you can verify — both past (alr
 - Parks: Proposed → Funded → Construction begins → Opens to public
 - Trials: Charges filed → Trial begins → Verdict → Sentencing/Appeal
 Use the actual or projected date if known; omit phases whose dates aren't reasonably knowable. Never invent dates.
+
+For "location": be as specific as you can. Preferred order:
+1. Full street address (e.g. "1300 South Penn Square, Philadelphia, PA")
+2. Nearest intersection (e.g. "Front Street and Berks Street, Philadelphia, PA")
+3. A nearby landmark with street context (e.g. "Penn's Landing waterfront at Walnut Street")
+4. Only fall back to a neighborhood name if nothing more specific is verifiable.
+The goal is something geocodable — never just a vague district like "Center City" if you can avoid it.
 
 Use empty strings or empty arrays for unknown fields.`;
 

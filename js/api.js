@@ -169,8 +169,38 @@ const PTW = (() => {
   }
 
   async function deleteProject(id) {
-    // GitHub Issues can't be deleted via REST without GraphQL+permissions.
-    // Close it and strip the app label so it falls out of the timeline.
+    // GitHub REST can't delete an issue. The GraphQL `deleteIssue` mutation
+    // can, but it requires the issue's node_id and admin/maintainer perms.
+    // If that fails (forks, restricted tokens, etc.) we fall back to
+    // close-and-strip-label so the project at least disappears from the
+    // timeline.
+    let nodeId;
+    try {
+      const issue = await gh(`/repos/${getRepo()}/issues/${id}`);
+      nodeId = issue.node_id;
+    } catch (e) {
+      nodeId = null;
+    }
+
+    if (nodeId) {
+      const res = await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: `mutation Del($id: ID!) { deleteIssue(input: {issueId: $id}) { repository { id } } }`,
+          variables: { id: nodeId },
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (!json.errors) return; // Deleted for real.
+      }
+      // Falls through to fallback if GraphQL refused.
+    }
+
     await gh(`/repos/${getRepo()}/issues/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ state: "closed", labels: [] }),

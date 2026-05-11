@@ -167,6 +167,7 @@ function renderTimeline() {
   const list = filteredProjects();
   wrap.innerHTML = "";
   $("empty-state").classList.toggle("hidden", state.projects.length !== 0);
+  renderProjectList();
   if (state.projects.length === 0) return;
 
   if (list.length === 0) {
@@ -175,7 +176,6 @@ function renderTimeline() {
     return;
   }
 
-  // Flatten every dated phase across all projects into a single event stream.
   const events = [];
   for (const project of list) {
     for (const ph of getProjectPhases(project)) {
@@ -192,29 +192,70 @@ function renderTimeline() {
   }
 
   const now = Date.now();
-  // Snap the range to whole-year boundaries with at least one year of padding on each side.
-  const startYear = new Date(Math.min(events[0].ts, now)).getFullYear() - 1;
-  const endYear = new Date(Math.max(events[events.length - 1].ts, now)).getFullYear() + 1;
-  const start = new Date(startYear, 0, 1).getTime();
-  const end = new Date(endYear + 1, 0, 1).getTime();
 
-  const PX_PER_DAY = 3.5;       // ~105px per month; ~10 months in a 1100px viewport
-  const totalDays = (end - start) / DAY_MS;
-  const totalWidth = Math.max(totalDays * PX_PER_DAY, 1100);
-
-  const xFor = (ts) => ((ts - start) / DAY_MS) * PX_PER_DAY;
-
-  // ---------- Lane-packing so callouts don't overlap ----------
-  const CALLOUT_W = 180;
+  // ---------- Density-aware horizontal positioning ----------
+  // Each event gets at least MIN_GAP between neighbors. If two events are
+  // far apart in time, we add a proportional bonus capped at MAX_GAP so
+  // empty stretches don't blow the timeline up.
+  const MIN_GAP = 220;
+  const MAX_GAP = 360;
+  const PX_PER_YEAR = 240;
+  const CALLOUT_W = 200;
   const CALLOUT_HALF = CALLOUT_W / 2;
-  const LANE_STEP = 130;        // vertical pixels between stacked callouts
-  const BASE_STEM = 60;         // pixels from axis to nearest callout edge
+  const EDGE_PAD = CALLOUT_HALF + 40;
+  const LANE_STEP = 140;
+  const BASE_STEM = 70;
+
+  // Insert "today" as a virtual event so the today marker has a slot.
+  const enriched = events.map((e) => ({ ...e, isPast: e.ts <= now }));
+
+  // Compute x-positions
+  let cursor = EDGE_PAD;
+  for (let i = 0; i < enriched.length; i++) {
+    if (i > 0) {
+      const dtDays = (enriched[i].ts - enriched[i - 1].ts) / DAY_MS;
+      const yearBonus = Math.min(dtDays, 365 * 3) / 365 * PX_PER_YEAR;
+      const gap = Math.max(MIN_GAP, Math.min(MAX_GAP, MIN_GAP + yearBonus));
+      cursor += gap;
+    }
+    enriched[i].x = cursor;
+  }
+  const totalWidth = Math.max(cursor + EDGE_PAD, 1100);
+
+  // Today's x: interpolate between the events that bracket it.
+  let todayX;
+  if (now <= enriched[0].ts) todayX = Math.max(20, enriched[0].x - MIN_GAP / 2);
+  else if (now >= enriched[enriched.length - 1].ts) todayX = Math.min(totalWidth - 20, enriched[enriched.length - 1].x + MIN_GAP / 2);
+  else {
+    for (let i = 1; i < enriched.length; i++) {
+      if (enriched[i].ts >= now) {
+        const prev = enriched[i - 1];
+        const curr = enriched[i];
+        const t = (now - prev.ts) / (curr.ts - prev.ts);
+        todayX = prev.x + t * (curr.x - prev.x);
+        break;
+      }
+    }
+  }
+
+  // Year markers: positioned at the average x of all events in each year.
+  const eventsByYear = new Map();
+  for (const ev of enriched) {
+    const yr = new Date(ev.ts).getFullYear();
+    if (!eventsByYear.has(yr)) eventsByYear.set(yr, []);
+    eventsByYear.get(yr).push(ev.x);
+  }
+  const yearMarkers = [...eventsByYear.entries()].map(([yr, xs]) => ({
+    year: yr,
+    x: xs.reduce((a, b) => a + b, 0) / xs.length,
+  }));
+
+  // ---------- Lane-pack callouts so they don't overlap ----------
   const aboveLanes = [];
   const belowLanes = [];
-
   function placeInLane(x, lanes) {
     for (let i = 0; i < lanes.length; i++) {
-      if (x - CALLOUT_HALF - 8 >= lanes[i]) {
+      if (x - CALLOUT_HALF - 12 >= lanes[i]) {
         lanes[i] = x + CALLOUT_HALF;
         return i;
       }
@@ -222,63 +263,57 @@ function renderTimeline() {
     lanes.push(x + CALLOUT_HALF);
     return lanes.length - 1;
   }
+  for (let i = 0; i < enriched.length; i++) {
+    enriched[i].above = i % 2 === 0;
+    enriched[i].lane = placeInLane(enriched[i].x, enriched[i].above ? aboveLanes : belowLanes);
+  }
 
-  const placed = events.map((ev, i) => {
-    const x = xFor(ev.ts);
-    const above = i % 2 === 0;
-    const lane = placeInLane(x, above ? aboveLanes : belowLanes);
-    return { ...ev, x, above, lane, isPast: ev.ts <= now };
-  });
+  const maxAbove = Math.max(aboveLanes.length, 1);
+  const maxBelow = Math.max(belowLanes.length, 1);
+  const aboveHeight = BASE_STEM + maxAbove * LANE_STEP;
+  const belowHeight = BASE_STEM + maxBelow * LANE_STEP;
+  const yearsHeight = 36;
+  const axisHeight = 36;
 
-  const maxAbove = aboveLanes.length;
-  const maxBelow = belowLanes.length;
-  const aboveHeight = BASE_STEM + Math.max(maxAbove, 1) * LANE_STEP;
-  const belowHeight = BASE_STEM + Math.max(maxBelow, 1) * LANE_STEP;
-  const axisHeight = 50;
-  const totalHeight = aboveHeight + axisHeight + belowHeight;
-
+  // ---------- Render ----------
   const tl = el("div", { class: "tl" });
   const content = el("div", {
     class: "tl-content",
-    style: `width:${totalWidth}px;height:${totalHeight}px`,
+    style: `width:${totalWidth}px;height:${aboveHeight + yearsHeight + axisHeight + belowHeight}px`,
   });
 
-  // ---------- Above section ----------
   const above = el("div", { class: "tl-above", style: `height:${aboveHeight}px` });
-  // ---------- Axis section ----------
+  const yearsRow = el("div", { class: "tl-years", style: `height:${yearsHeight}px` });
   const axis = el("div", { class: "tl-axis", style: `height:${axisHeight}px` });
   axis.append(el("div", { class: "tl-axis-line" }));
-  // ---------- Below section ----------
   const below = el("div", { class: "tl-below", style: `height:${belowHeight}px` });
 
-  // Year markers along the axis
-  for (let yr = startYear; yr <= endYear; yr++) {
-    const x = xFor(new Date(yr, 0, 1).getTime());
-    axis.append(el("div", { class: "tl-year", style: `left:${x}px` }, String(yr)));
-    // Tick mark on the axis
-    axis.append(el("div", { class: "tl-tick", style: `left:${x}px` }));
+  // Year labels (in their own row, no overlap with dots)
+  for (const ym of yearMarkers) {
+    yearsRow.append(el("div", { class: "tl-year", style: `left:${ym.x}px` }, String(ym.year)));
   }
 
-  // Today marker line spanning vertically
-  const todayX = xFor(now);
-  if (todayX >= 0 && todayX <= totalWidth) {
+  // Today marker — vertical line from bottom of "above" section
+  // down through years + axis. Avoids cutting through the year text.
+  if (todayX !== undefined) {
+    const todayTop = aboveHeight - 8;
+    const todayHeight = yearsHeight + axisHeight + 16;
     content.append(el("div", {
       class: "tl-today",
-      style: `left:${todayX}px;top:${aboveHeight - 24}px;height:${axisHeight + 48}px`,
+      style: `left:${todayX}px;top:${todayTop}px;height:${todayHeight}px`,
     }, el("span", { class: "tl-today-label" }, "today")));
   }
 
-  // Place events
-  for (const ev of placed) {
+  for (const ev of enriched) {
     const sideEl = ev.above ? above : below;
     const stemHeight = BASE_STEM + ev.lane * LANE_STEP;
 
-    // Stem
+    // Stem: from axis center toward callout
     sideEl.append(el("div", {
       class: "tl-stem",
       style: ev.above
-        ? `left:${ev.x}px;bottom:0;height:${stemHeight - 6}px`
-        : `left:${ev.x}px;top:0;height:${stemHeight - 6}px`,
+        ? `left:${ev.x}px;bottom:0;height:${stemHeight - 8}px`
+        : `left:${ev.x}px;top:0;height:${stemHeight - 8}px`,
     }));
 
     // Callout
@@ -291,15 +326,12 @@ function renderTimeline() {
       onclick: () => openDetail(ev.project.id),
       dataset: { status: ev.project.status },
     },
-      el("div", { class: "tl-callout-year" }, String(new Date(ev.phase.date).getFullYear())),
-      el("div", { class: "tl-callout-body" },
-        el("div", { class: "tl-callout-project" }, ev.project.title),
-        el("div", { class: "tl-callout-phase" }, ev.phase.name),
-        el("div", { class: "tl-callout-date" }, formatDate(ev.phase.date)),
-      ),
+      el("div", { class: "tl-callout-project" }, ev.project.title),
+      el("div", { class: "tl-callout-phase" }, ev.phase.name),
+      el("div", { class: "tl-callout-date" }, formatDate(ev.phase.date)),
     ));
 
-    // Dot on the axis
+    // Dot
     axis.append(el("div", {
       class: `tl-dot ${ev.isPast ? "past" : "future"}`,
       style: `left:${ev.x}px`,
@@ -309,16 +341,38 @@ function renderTimeline() {
     }));
   }
 
-  content.append(above, axis, below);
+  content.append(above, yearsRow, axis, below);
   tl.append(content);
   wrap.append(tl);
 
-  // Scroll so "today" sits ~25% from the left on first paint.
   setTimeout(() => {
-    tl.scrollLeft = Math.max(0, todayX - 250);
+    if (todayX !== undefined) tl.scrollLeft = Math.max(0, todayX - 280);
   }, 0);
 
   if (state.view === "map") renderMap();
+}
+
+function renderProjectList() {
+  const wrap = $("project-list");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  if (state.projects.length === 0) {
+    wrap.classList.add("hidden");
+    return;
+  }
+  wrap.classList.remove("hidden");
+  const sorted = state.projects.slice().sort((a, b) =>
+    a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
+  );
+  wrap.append(el("h2", { class: "project-list-title" }, "All tracked projects"));
+  const ul = el("ul", { class: "project-list-ul" });
+  for (const p of sorted) {
+    ul.append(el("li", { class: "project-list-item", onclick: () => openDetail(p.id) },
+      el("span", { class: "project-list-name" }, p.title),
+      statusBadge(p.status),
+    ));
+  }
+  wrap.append(ul);
 }
 
 // Badge factories
@@ -658,19 +712,52 @@ const NEIGHBORHOOD_COORDS = {
 };
 
 const PHILLY_CENTER = [39.9526, -75.1652];
-const GEO_CACHE_PREFIX = "ptw_geo_";
+// Bumped from ptw_geo_ so previously-cached imprecise neighborhood
+// hits get re-resolved against Nominatim.
+const GEO_CACHE_PREFIX = "ptw_geo2_";
 
 function jitter() { return (Math.random() - 0.5) * 0.004; }
 
-// Synchronous geocode: returns coords instantly when the location is
-// either a known neighborhood or already cached. Returns null otherwise
-// (caller should fall back to async geocoding).
 function geocodeSync(loc) {
   if (!loc) return null;
   const cached = localStorage.getItem(GEO_CACHE_PREFIX + loc);
   if (cached) {
     try { return JSON.parse(cached); } catch (_) {}
   }
+  return null;
+}
+
+// Async geocode: try Nominatim first for the most specific match. If
+// it returns nothing, fall back to the hardcoded neighborhood map.
+// If even that fails, drop a jittered marker near Philly center so the
+// project appears on the map approximately. Cached forever per loc.
+async function geocodeAsync(loc) {
+  if (!loc) return null;
+  const cached = geocodeSync(loc);
+  if (cached) return cached;
+
+  // 1. Nominatim — most precise
+  try {
+    const query = `${loc}, Philadelphia, PA`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.length) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          const result = [lat, lon];
+          localStorage.setItem(GEO_CACHE_PREFIX + loc, JSON.stringify(result));
+          return result;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Nominatim failed for", loc, err);
+  }
+
+  // 2. Hardcoded neighborhood map — coarse but covers common cases
   const key = loc.toLowerCase().trim();
   for (const [name, coords] of Object.entries(NEIGHBORHOOD_COORDS)) {
     if (key.includes(name)) {
@@ -679,33 +766,15 @@ function geocodeSync(loc) {
       return result;
     }
   }
-  return null;
-}
 
-// Async geocode via Nominatim (OpenStreetMap). Free, no key, rate-limited
-// to 1 req/sec per their usage policy. We cache aggressively so each
-// unique location string is fetched at most once, ever.
-async function geocodeAsync(loc) {
-  if (!loc) return null;
-  const cached = geocodeSync(loc);
-  if (cached) return cached;
-  const query = `${loc}, Philadelphia, PA`;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data || !data.length) return null;
-    const lat = parseFloat(data[0].lat);
-    const lon = parseFloat(data[0].lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    const result = [lat, lon];
-    localStorage.setItem(GEO_CACHE_PREFIX + loc, JSON.stringify(result));
-    return result;
-  } catch (err) {
-    console.warn("Nominatim geocode failed for", loc, err);
-    return null;
-  }
+  // 3. Approximate: Philly center with bigger jitter so it doesn't
+  //    pile up exactly on top of other unknowns.
+  const result = [
+    PHILLY_CENTER[0] + jitter() * 4,
+    PHILLY_CENTER[1] + jitter() * 4,
+  ];
+  localStorage.setItem(GEO_CACHE_PREFIX + loc, JSON.stringify(result));
+  return result;
 }
 
 // Sequential queue so we respect Nominatim's 1 req/sec rate limit.

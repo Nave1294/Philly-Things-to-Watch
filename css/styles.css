@@ -271,7 +271,7 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
   display: flex;
   flex-direction: column;
 }
-.tl-above, .tl-axis, .tl-below {
+.tl-above, .tl-years, .tl-axis, .tl-below {
   position: relative;
   flex-shrink: 0;
 }
@@ -285,26 +285,20 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
   background: var(--text);
   border-radius: 1px;
 }
-.tl-tick {
-  position: absolute;
-  top: calc(50% - 6px);
-  width: 1px;
-  height: 12px;
-  background: var(--text);
-  opacity: 0.4;
+.tl-years {
+  position: relative;
 }
 .tl-year {
   position: absolute;
-  top: 0;
+  bottom: 0;
   transform: translateX(-50%);
   font-family: var(--serif);
   font-weight: 500;
-  font-size: 1.4rem;
-  letter-spacing: 0.02em;
+  font-size: 1.35rem;
+  letter-spacing: 0.03em;
   color: var(--text);
-  padding: 0.2rem 0.5rem;
-  background: var(--bg-elev);
-  z-index: 2;
+  padding: 0 0.5rem;
+  white-space: nowrap;
 }
 
 .tl-today {
@@ -391,18 +385,6 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
 .tl-callout[data-status="Completed"]:hover { border-color: var(--success); }
 .tl-callout[data-status="Cancelled"] { opacity: 0.7; }
 
-.tl-callout-year {
-  font-size: 1.15rem;
-  font-weight: 500;
-  color: var(--text);
-  border-bottom: 1px solid var(--border-soft);
-  padding-bottom: 0.2rem;
-  margin-bottom: 0.35rem;
-  letter-spacing: 0.02em;
-}
-.tl-callout-body {
-  font-size: 0.85rem;
-}
 .tl-callout-project {
   color: var(--text);
   font-weight: 500;
@@ -805,6 +787,56 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
 }
 .toast.error { border-color: var(--danger); color: var(--danger); }
 .toast.success { border-color: var(--success); color: var(--success); }
+
+/* ------- Project list (alphabetical) ------- */
+.project-list {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-soft);
+}
+.project-list-title {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: var(--text-soft);
+  margin: 0 0 1rem;
+  text-align: center;
+}
+.project-list-ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.4rem;
+}
+.project-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.project-list-item:hover {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+.project-list-name {
+  font-family: var(--serif);
+  font-size: 0.98rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
 
 /* ------- Settings danger zone ------- */
 .danger-zone {
