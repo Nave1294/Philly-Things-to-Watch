@@ -161,23 +161,6 @@ function filteredProjects() {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PX_PER_DAY = 3;            // 3px/day ≈ 90px/month — ~12 months in a 1080px viewport
-const LABEL_WIDTH = 240;
-const ROW_HEIGHT = 52;
-const HEADER_HEIGHT = 44;
-
-function startOfMonth(d) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function addMonths(d, n) {
-  const x = new Date(d);
-  x.setMonth(x.getMonth() + n);
-  return x;
-}
-function dateToX(date, start) {
-  const days = (new Date(date).getTime() - start.getTime()) / DAY_MS;
-  return days * PX_PER_DAY;
-}
 
 function renderTimeline() {
   const wrap = $("timeline-view");
@@ -192,131 +175,147 @@ function renderTimeline() {
     return;
   }
 
-  // Compute the time range across all phases.
-  const now = new Date();
-  const allDates = [];
-  for (const p of list) {
-    for (const ph of getProjectPhases(p)) {
+  // Flatten every dated phase across all projects into a single event stream.
+  const events = [];
+  for (const project of list) {
+    for (const ph of getProjectPhases(project)) {
       const t = new Date(ph.date).getTime();
-      if (Number.isFinite(t)) allDates.push(t);
+      if (Number.isFinite(t)) events.push({ project, phase: ph, ts: t });
     }
   }
-  let minTs = allDates.length ? Math.min(...allDates) : now.getTime() - 90 * DAY_MS;
-  let maxTs = allDates.length ? Math.max(...allDates) : now.getTime() + 365 * DAY_MS;
-  // Always include "today" plus 2 months of padding on each side.
-  minTs = Math.min(minTs, now.getTime() - 60 * DAY_MS);
-  maxTs = Math.max(maxTs, now.getTime() + 60 * DAY_MS);
-  const start = startOfMonth(new Date(minTs - 30 * DAY_MS));
-  const endRaw = new Date(maxTs + 30 * DAY_MS);
-  const end = startOfMonth(addMonths(endRaw, 1));
-  const totalDays = (end.getTime() - start.getTime()) / DAY_MS;
-  const totalWidth = Math.max(totalDays * PX_PER_DAY, 1080);
+  events.sort((a, b) => a.ts - b.ts);
 
-  const gantt = el("div", { class: "gantt" });
+  if (events.length === 0) {
+    wrap.append(el("p", { class: "muted", style: "text-align:center;padding:2rem" },
+      "No dated phases yet. Add phases to your projects to see the timeline."));
+    return;
+  }
 
-  // ---------- Header (month / year scale) ----------
-  const header = el("div", { class: "gantt-header" });
-  header.append(el("div", { class: "gantt-corner" },
-    el("span", { class: "muted small" }, "project")));
-  const scale = el("div", { class: "gantt-scale", style: `width:${totalWidth}px` });
+  const now = Date.now();
+  // Snap the range to whole-year boundaries with at least one year of padding on each side.
+  const startYear = new Date(Math.min(events[0].ts, now)).getFullYear() - 1;
+  const endYear = new Date(Math.max(events[events.length - 1].ts, now)).getFullYear() + 1;
+  const start = new Date(startYear, 0, 1).getTime();
+  const end = new Date(endYear + 1, 0, 1).getTime();
 
-  let m = new Date(start);
-  let lastYear = null;
-  while (m < end) {
-    const x = dateToX(m, start);
-    const monthWidth = ((addMonths(m, 1) - m) / DAY_MS) * PX_PER_DAY;
-    const yearLabel = m.getFullYear() !== lastYear;
-    lastYear = m.getFullYear();
-    scale.append(el("div", {
-      class: "gantt-month",
-      style: `left:${x}px;width:${monthWidth}px`,
+  const PX_PER_DAY = 3.5;       // ~105px per month; ~10 months in a 1100px viewport
+  const totalDays = (end - start) / DAY_MS;
+  const totalWidth = Math.max(totalDays * PX_PER_DAY, 1100);
+
+  const xFor = (ts) => ((ts - start) / DAY_MS) * PX_PER_DAY;
+
+  // ---------- Lane-packing so callouts don't overlap ----------
+  const CALLOUT_W = 180;
+  const CALLOUT_HALF = CALLOUT_W / 2;
+  const LANE_STEP = 130;        // vertical pixels between stacked callouts
+  const BASE_STEM = 60;         // pixels from axis to nearest callout edge
+  const aboveLanes = [];
+  const belowLanes = [];
+
+  function placeInLane(x, lanes) {
+    for (let i = 0; i < lanes.length; i++) {
+      if (x - CALLOUT_HALF - 8 >= lanes[i]) {
+        lanes[i] = x + CALLOUT_HALF;
+        return i;
+      }
+    }
+    lanes.push(x + CALLOUT_HALF);
+    return lanes.length - 1;
+  }
+
+  const placed = events.map((ev, i) => {
+    const x = xFor(ev.ts);
+    const above = i % 2 === 0;
+    const lane = placeInLane(x, above ? aboveLanes : belowLanes);
+    return { ...ev, x, above, lane, isPast: ev.ts <= now };
+  });
+
+  const maxAbove = aboveLanes.length;
+  const maxBelow = belowLanes.length;
+  const aboveHeight = BASE_STEM + Math.max(maxAbove, 1) * LANE_STEP;
+  const belowHeight = BASE_STEM + Math.max(maxBelow, 1) * LANE_STEP;
+  const axisHeight = 50;
+  const totalHeight = aboveHeight + axisHeight + belowHeight;
+
+  const tl = el("div", { class: "tl" });
+  const content = el("div", {
+    class: "tl-content",
+    style: `width:${totalWidth}px;height:${totalHeight}px`,
+  });
+
+  // ---------- Above section ----------
+  const above = el("div", { class: "tl-above", style: `height:${aboveHeight}px` });
+  // ---------- Axis section ----------
+  const axis = el("div", { class: "tl-axis", style: `height:${axisHeight}px` });
+  axis.append(el("div", { class: "tl-axis-line" }));
+  // ---------- Below section ----------
+  const below = el("div", { class: "tl-below", style: `height:${belowHeight}px` });
+
+  // Year markers along the axis
+  for (let yr = startYear; yr <= endYear; yr++) {
+    const x = xFor(new Date(yr, 0, 1).getTime());
+    axis.append(el("div", { class: "tl-year", style: `left:${x}px` }, String(yr)));
+    // Tick mark on the axis
+    axis.append(el("div", { class: "tl-tick", style: `left:${x}px` }));
+  }
+
+  // Today marker line spanning vertically
+  const todayX = xFor(now);
+  if (todayX >= 0 && todayX <= totalWidth) {
+    content.append(el("div", {
+      class: "tl-today",
+      style: `left:${todayX}px;top:${aboveHeight - 24}px;height:${axisHeight + 48}px`,
+    }, el("span", { class: "tl-today-label" }, "today")));
+  }
+
+  // Place events
+  for (const ev of placed) {
+    const sideEl = ev.above ? above : below;
+    const stemHeight = BASE_STEM + ev.lane * LANE_STEP;
+
+    // Stem
+    sideEl.append(el("div", {
+      class: "tl-stem",
+      style: ev.above
+        ? `left:${ev.x}px;bottom:0;height:${stemHeight - 6}px`
+        : `left:${ev.x}px;top:0;height:${stemHeight - 6}px`,
+    }));
+
+    // Callout
+    const calloutStyle = ev.above
+      ? `left:${ev.x}px;bottom:${stemHeight}px;width:${CALLOUT_W}px`
+      : `left:${ev.x}px;top:${stemHeight}px;width:${CALLOUT_W}px`;
+    sideEl.append(el("div", {
+      class: `tl-callout ${ev.isPast ? "past" : "future"}`,
+      style: calloutStyle,
+      onclick: () => openDetail(ev.project.id),
+      dataset: { status: ev.project.status },
     },
-      yearLabel ? el("div", { class: "gantt-year-label" }, String(m.getFullYear())) : null,
-      el("div", { class: "gantt-month-label" },
-        m.toLocaleDateString(undefined, { month: "short" })),
+      el("div", { class: "tl-callout-year" }, String(new Date(ev.phase.date).getFullYear())),
+      el("div", { class: "tl-callout-body" },
+        el("div", { class: "tl-callout-project" }, ev.project.title),
+        el("div", { class: "tl-callout-phase" }, ev.phase.name),
+        el("div", { class: "tl-callout-date" }, formatDate(ev.phase.date)),
+      ),
     ));
-    m = addMonths(m, 1);
+
+    // Dot on the axis
+    axis.append(el("div", {
+      class: `tl-dot ${ev.isPast ? "past" : "future"}`,
+      style: `left:${ev.x}px`,
+      title: `${ev.project.title} · ${ev.phase.name} · ${formatDate(ev.phase.date)}`,
+      onclick: () => openDetail(ev.project.id),
+      dataset: { status: ev.project.status },
+    }));
   }
-  header.append(scale);
-  gantt.append(header);
 
-  // ---------- Rows ----------
-  const todayX = dateToX(now, start);
-  const rows = el("div", { class: "gantt-rows" });
-  for (const p of list) {
-    const phases = getProjectPhases(p);
-    const row = el("div", {
-      class: "gantt-row",
-      dataset: { status: p.status },
-    });
-    const label = el("div", {
-      class: "gantt-label",
-      onclick: () => openDetail(p.id),
-    },
-      el("h3", { class: "gantt-label-title" }, p.title),
-      statusBadge(p.status),
-    );
-    row.append(label);
+  content.append(above, axis, below);
+  tl.append(content);
+  wrap.append(tl);
 
-    const track = el("div", { class: "gantt-track", style: `width:${totalWidth}px` });
-
-    // Month grid lines on the track
-    let mm = new Date(start);
-    while (mm < end) {
-      const x = dateToX(mm, start);
-      track.append(el("div", { class: "gantt-gridline", style: `left:${x}px` }));
-      mm = addMonths(mm, 1);
-    }
-
-    // Today line
-    if (todayX >= 0 && todayX <= totalWidth) {
-      track.append(el("div", { class: "gantt-today", style: `left:${todayX}px` }));
-    }
-
-    // Connecting line between first and last phase
-    if (phases.length >= 2) {
-      const firstX = dateToX(phases[0].date, start);
-      const lastX = dateToX(phases[phases.length - 1].date, start);
-      track.append(el("div", {
-        class: "gantt-phase-line",
-        style: `left:${firstX}px;width:${Math.max(0, lastX - firstX)}px`,
-      }));
-    }
-
-    // Phase dots
-    for (const ph of phases) {
-      const x = dateToX(ph.date, start);
-      const isPast = new Date(ph.date).getTime() <= now.getTime();
-      const dot = el("div", {
-        class: `gantt-phase ${isPast ? "past" : "future"}`,
-        style: `left:${x}px`,
-        title: `${ph.name} · ${formatDate(ph.date)}`,
-        onclick: (ev) => { ev.stopPropagation(); openDetail(p.id); },
-      },
-        el("span", { class: "gantt-phase-dot" }),
-        el("span", { class: "gantt-phase-label" }, ph.name),
-      );
-      track.append(dot);
-    }
-
-    if (phases.length === 0) {
-      track.append(el("div", { class: "gantt-no-dates", style: `left:${todayX + 12}px` },
-        "no dates set — click to add"));
-      track.style.cursor = "pointer";
-      track.onclick = () => openEdit(p.id);
-    }
-
-    row.append(track);
-    rows.append(row);
-  }
-  gantt.append(rows);
-
-  wrap.append(gantt);
-
-  // Scroll so "today" sits about a quarter from the left on first render
+  // Scroll so "today" sits ~25% from the left on first paint.
   setTimeout(() => {
-    const target = todayX - 150;
-    gantt.scrollLeft = Math.max(0, target);
+    tl.scrollLeft = Math.max(0, todayX - 250);
   }, 0);
 
   if (state.view === "map") renderMap();
@@ -544,7 +543,8 @@ function getProjectPhases(project) {
 
 async function handleSaveProject(e) {
   e.preventDefault();
-  const id = $("project-id").value;
+  const idRaw = $("project-id").value;
+  const id = idRaw ? Number(idRaw) : null;
   const payload = {
     title: $("project-name").value.trim(),
     category: $("project-category").value,
@@ -557,32 +557,61 @@ async function handleSaveProject(e) {
     links: $("project-links").value.split("\n").map((s) => s.trim()).filter(Boolean),
     phases: parsePhases($("project-phases").value),
   };
+  // Preserve lastAutoRefresh if editing an existing project
+  if (id) {
+    const existing = state.projects.find((p) => p.id === id);
+    if (existing) payload.lastAutoRefresh = existing.lastAutoRefresh || "";
+  }
+
+  const submitBtn = e.target?.querySelector('button[type="submit"]');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "saving…"; }
+
   try {
+    let saved;
     if (id) {
-      await PTW.updateProject(Number(id), payload);
+      saved = await PTW.updateProject(id, payload);
+      // Replace in local state immediately so the UI reflects the save
+      // without waiting for the next listProjects fetch (which can lag
+      // due to GitHub API eventual consistency).
+      const idx = state.projects.findIndex((p) => p.id === id);
+      if (idx >= 0) state.projects[idx] = saved;
       toast("Project updated", "success");
     } else {
-      await PTW.createProject(payload);
+      saved = await PTW.createProject(payload);
+      state.projects.push(saved);
       toast("Project added", "success");
     }
     closeModal("project-form-modal");
-    await reloadProjects();
+    renderTimeline();
+    // Background reconcile against the API in case anything diverged.
+    setTimeout(() => reloadProjects(), 1500);
   } catch (err) {
     toast(err.message, "error");
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Save Project"; }
   }
 }
 
 async function handleDeleteProject() {
-  const id = $("project-id").value;
+  const id = Number($("project-id").value);
   if (!id) return;
-  if (!confirm("Remove this project from the timeline? The underlying GitHub issue will be closed but kept for history.")) return;
+  if (!confirm("Permanently remove this project from the timeline?")) return;
+  const btn = $("delete-project");
+  btn.disabled = true;
+  btn.textContent = "deleting…";
   try {
-    await PTW.deleteProject(Number(id));
+    await PTW.deleteProject(id);
+    // Optimistically drop from local state so it disappears immediately.
+    state.projects = state.projects.filter((p) => p.id !== id);
     toast("Project removed", "success");
     closeModal("project-form-modal");
-    await reloadProjects();
+    renderTimeline();
+    setTimeout(() => reloadProjects(), 1500);
   } catch (err) {
     toast(err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Delete";
   }
 }
 
@@ -799,6 +828,50 @@ function clearSettings() {
   renderTimeline();
   refreshAutofillButton();
   toast("Settings cleared");
+}
+
+async function clearAllProjects() {
+  if (!PTW.isConfigured()) {
+    toast("Configure your repo and token first", "error");
+    return;
+  }
+  if (!confirm("Delete all projects from the timeline?\n\nThis closes every tracked GitHub issue and removes the tracking label. The issues remain in your repo but disappear from this site. You can re-add projects after.")) return;
+  if (!confirm("Are you sure? This cannot be undone from the site.")) return;
+
+  const btn = $("clear-projects");
+  btn.disabled = true;
+  const original = btn.textContent;
+
+  // Re-fetch from the API in case local state is stale, so we
+  // actually wipe every tracked issue (not just whatever is rendered).
+  let projects = state.projects;
+  try {
+    projects = await PTW.listProjects();
+  } catch (err) {
+    toast(`Could not list projects: ${err.message}`, "error");
+    btn.disabled = false;
+    btn.textContent = original;
+    return;
+  }
+
+  let removed = 0;
+  for (const p of projects) {
+    btn.textContent = `deleting ${removed + 1} of ${projects.length}…`;
+    try {
+      await PTW.deleteProject(p.id);
+      removed += 1;
+    } catch (err) {
+      console.warn(`Could not delete ${p.title}:`, err);
+    }
+  }
+
+  state.projects = [];
+  renderTimeline();
+  btn.textContent = original;
+  btn.disabled = false;
+  closeModal("settings-modal");
+  toast(`Removed ${removed} project${removed === 1 ? "" : "s"}.`, "success");
+  setTimeout(() => reloadProjects(), 1500);
 }
 
 // ---------- Auto-fill ----------
@@ -1090,6 +1163,7 @@ function init() {
   $("settings-btn").addEventListener("click", openSettings);
   $("save-settings").addEventListener("click", saveSettings);
   $("clear-settings").addEventListener("click", clearSettings);
+  $("clear-projects").addEventListener("click", clearAllProjects);
   $("add-project-btn").addEventListener("click", () => {
     if (!PTW.isConfigured()) { openSettings(); return; }
     openAdd();
