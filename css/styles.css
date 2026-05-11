@@ -650,22 +650,6 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
 }
 .news-item a:hover { text-decoration: underline; }
 
-.update-form {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  align-items: flex-end;
-}
-.update-form input {
-  flex: 1;
-  padding: 0.5rem 0 !important;
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid var(--border) !important;
-  font-family: var(--serif) !important;
-  border-radius: 0 !important;
-}
-
 .links-list {
   padding-left: 1.2rem;
   margin: 0;
@@ -689,9 +673,9 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
   border: 1px solid var(--border);
   background: var(--bg-elev);
 }
-/* Warm the map tiles toward the cream palette */
+/* Very subtle warm tint so the map reads cleanly but still feels of-a-piece */
 .leaflet-tile-pane {
-  filter: sepia(0.5) saturate(0.55) hue-rotate(-5deg) brightness(1.02) contrast(0.92);
+  filter: sepia(0.12) saturate(0.95);
 }
 .leaflet-control-attribution {
   background: rgba(251, 246, 234, 0.85) !important;
