@@ -76,6 +76,7 @@ const PTW = (() => {
       location: data.location || "",
       searchTerms: data.searchTerms || "",
       links: data.links || [],
+      lastAutoRefresh: data.lastAutoRefresh || "",
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
       githubState: issue.state,
@@ -125,6 +126,7 @@ const PTW = (() => {
       location: p.location,
       searchTerms: p.searchTerms,
       links: p.links,
+      lastAutoRefresh: p.lastAutoRefresh || "",
     };
     const issue = await gh(`/repos/${getRepo()}/issues`, {
       method: "POST",
@@ -148,6 +150,7 @@ const PTW = (() => {
       location: p.location,
       searchTerms: p.searchTerms,
       links: p.links,
+      lastAutoRefresh: p.lastAutoRefresh || "",
     };
     const state = p.status === "Completed" || p.status === "Cancelled" ? "closed" : "open";
     const issue = await gh(`/repos/${getRepo()}/issues/${id}`, {

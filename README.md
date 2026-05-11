@@ -55,6 +55,7 @@ Just open the same URL on the other device, click **⚙ Settings**, and paste yo
 - **Project detail view** with description, meta grid, manual update log, attached links, and auto-fetched news
 - **Add updates** as you go — captured as issue comments so they're version-controlled
 - **✦ Auto-fill (optional)** — when you set an Anthropic API key in Settings, the Add Project form gets an auto-fill button. Type a project name, click it, and Claude looks it up on the web and pre-fills category, status, description, dates, location, search terms, and links. Review and edit anything before saving.
+- **Weekly auto-refresh (optional)** — with the Anthropic key set, the site quietly re-checks each active project once per week when you visit. If Claude detects a status change (e.g. Planning → In Progress), it updates the project and adds a dated comment explaining the change with sources. Completed and Cancelled projects are skipped. You can also click **✦ refresh now** in a project's detail view to re-check it immediately.
 
 ## Adding a project
 

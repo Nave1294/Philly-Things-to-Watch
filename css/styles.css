@@ -268,24 +268,44 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
 .project-card {
   position: relative;
   background: var(--bg-elev);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-soft);
   border-radius: 4px;
-  padding: 1.1rem 1.4rem;
-  margin-bottom: 1rem;
+  padding: 0.7rem 1.1rem;
+  margin-bottom: 0.4rem;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 .project-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 4px 14px rgba(46, 59, 54, 0.07);
-  transform: translateY(-1px);
+  background: var(--bg);
 }
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.card-row .card-title {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.005em;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-row .badge { flex-shrink: 0; }
+
 /* Timeline dot — shape/fill conveys status, not color */
 .project-card::before {
   content: "";
   position: absolute;
   left: -1.95rem;
-  top: 1.45rem;
+  top: 1.05rem;
   width: 11px;
   height: 11px;
   border-radius: 50%;
@@ -293,26 +313,16 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
   border: 1.5px solid var(--accent);
   box-sizing: border-box;
 }
-/* Proposed: hollow circle (default) */
-/* Planning: dashed outline */
-.project-card[data-status="Planning"]::before {
-  border-style: dashed;
-}
-/* Approved: outlined diamond */
+.project-card[data-status="Planning"]::before { border-style: dashed; }
 .project-card[data-status="Approved"]::before {
   border-radius: 0;
   transform: rotate(45deg);
-  top: 1.5rem;
+  top: 1.1rem;
 }
-/* In Progress: solid filled circle */
-.project-card[data-status="In Progress"]::before {
-  background: var(--accent);
-}
-/* On Hold: half-filled (split with gradient) */
+.project-card[data-status="In Progress"]::before { background: var(--accent); }
 .project-card[data-status="On Hold"]::before {
   background: linear-gradient(to right, var(--accent) 50%, var(--bg) 50%);
 }
-/* Completed: filled sage dot with check overlay */
 .project-card[data-status="Completed"]::before {
   border-color: var(--success);
   background: var(--success);
@@ -321,7 +331,7 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
   content: "✓";
   position: absolute;
   left: -1.95rem;
-  top: 1.15rem;
+  top: 0.75rem;
   width: 11px;
   height: 11px;
   text-align: center;
@@ -330,7 +340,6 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
   line-height: 11px;
   font-weight: 700;
 }
-/* Cancelled: muted gray X */
 .project-card[data-status="Cancelled"]::before {
   border: none;
   background: transparent;
@@ -339,7 +348,7 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
   content: "×";
   position: absolute;
   left: -2rem;
-  top: 1.05rem;
+  top: 0.65rem;
   width: 14px;
   height: 14px;
   color: var(--neutral);
@@ -750,6 +759,38 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
 }
 .toast.error { border-color: var(--danger); color: var(--danger); }
 .toast.success { border-color: var(--success); color: var(--success); }
+
+/* ------- Refresh banner ------- */
+.refresh-banner {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0.7rem 1.25rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+.refresh-banner.refreshing { border-color: var(--accent); color: var(--accent); }
+.refresh-banner.done { border-color: var(--success); color: var(--success); }
+.banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0 0.3rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  border-radius: 999px;
+}
+.banner-close:hover { background: var(--bg-soft); color: var(--text); }
 
 /* ------- Auto-fill ------- */
 .name-row {

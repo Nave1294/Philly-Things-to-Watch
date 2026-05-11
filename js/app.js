@@ -178,17 +178,10 @@ function renderTimeline() {
       dataset: { status: p.status, id: p.id },
       onclick: () => openDetail(p.id),
     });
-
     card.append(
-      el("div", { class: "card-header" },
+      el("div", { class: "card-row" },
         el("h3", { class: "card-title" }, p.title),
-      ),
-      el("div", { class: "card-meta" }, categoryBadge(p.category), statusBadge(p.status)),
-      p.description ? el("p", { class: "card-desc" }, p.description) : null,
-      el("div", { class: "card-footer" },
-        el("span", { class: "card-location" }, p.location || "—"),
-        p.completionDate ? el("span", { class: "card-completion" }, `Target: ${formatDate(p.completionDate)}`) : null,
-        el("span", { class: "updated" }, `Updated ${relativeTime(p.updatedAt)}`),
+        statusBadge(p.status),
       ),
     );
     wrap.append(card);
@@ -220,9 +213,16 @@ async function openDetail(id) {
       el("div", { class: "card-meta" }, categoryBadge(p.category), statusBadge(p.status)),
       el("div", { class: "detail-actions" },
         el("button", { onclick: () => { closeModal("project-detail-modal"); openEdit(p.id); } }, "edit"),
+        PTW_Claude.isConfigured()
+          ? el("button", { onclick: () => manualRefreshProject(p.id), title: "Ask Claude to re-check this project right now" }, "✦ refresh now")
+          : null,
         el("a", { href: p.url, target: "_blank" },
           el("button", {}, "view on github")),
       ),
+      p.lastAutoRefresh
+        ? el("p", { class: "muted small", style: "text-align:center;margin-top:0.5rem;font-style:italic" },
+            `last auto-refreshed ${relativeTime(p.lastAutoRefresh)}`)
+        : null,
     ),
     p.description ? el("div", { class: "detail-section" },
       el("h3", {}, "Description"),
@@ -641,6 +641,149 @@ function applyAutofill(data) {
   }
 }
 
+// ---------- Weekly auto-refresh ----------
+// Once a week, when the user visits, silently ask Claude to re-check each
+// active project. If the status has shifted, update it and add a comment
+// documenting the change. Completed and Cancelled projects are skipped.
+
+const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const REFRESH_GAP_MS = 4000; // gentle pacing between API calls
+
+function isStale(project) {
+  if (!project.lastAutoRefresh) return true;
+  const last = new Date(project.lastAutoRefresh).getTime();
+  if (!last) return true;
+  return Date.now() - last > REFRESH_INTERVAL_MS;
+}
+
+function isActive(project) {
+  return project.status !== "Completed" && project.status !== "Cancelled";
+}
+
+function setBanner(text, kind = "") {
+  const banner = $("refresh-banner");
+  const textEl = $("refresh-banner-text");
+  textEl.textContent = text;
+  banner.className = `refresh-banner ${kind}`;
+  banner.classList.remove("hidden");
+}
+
+function hideBanner() {
+  $("refresh-banner").classList.add("hidden");
+}
+
+async function maybeRunWeeklyRefresh() {
+  if (!PTW.isConfigured() || !PTW_Claude.isConfigured()) return;
+  if (state.refreshing) return;
+
+  const stale = state.projects.filter((p) => isActive(p) && isStale(p));
+  if (stale.length === 0) return;
+
+  state.refreshing = true;
+  setBanner(`checking ${stale.length} project${stale.length === 1 ? "" : "s"} for updates…`, "refreshing");
+
+  const changes = [];
+  let checked = 0;
+  for (const project of stale) {
+    checked += 1;
+    setBanner(`checking ${checked} of ${stale.length}: ${project.title}…`, "refreshing");
+    try {
+      const result = await refreshSingleProject(project);
+      if (result && result.changed) changes.push(result);
+    } catch (err) {
+      console.warn(`Refresh failed for ${project.title}:`, err);
+    }
+    if (checked < stale.length) {
+      await sleep(REFRESH_GAP_MS);
+    }
+  }
+
+  state.refreshing = false;
+  if (changes.length === 0) {
+    setBanner(`checked ${stale.length} project${stale.length === 1 ? "" : "s"} — nothing has shifted.`, "done");
+  } else {
+    const summary = changes
+      .map((c) => `${c.title}: ${c.fromStatus} → ${c.toStatus}`)
+      .join(" · ");
+    setBanner(`updated ${changes.length} project${changes.length === 1 ? "" : "s"} — ${summary}`, "done");
+    await reloadProjects();
+  }
+  setTimeout(hideBanner, 20000);
+}
+
+async function refreshSingleProject(project) {
+  const data = await PTW_Claude.lookupProject(project.title);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const newStatus = STATUSES.includes(data.status) ? data.status : project.status;
+  const statusChanged = newStatus !== project.status;
+
+  // Build a payload that only updates the status field automatically.
+  // Other fields are preserved — surface new info via a comment so the
+  // user has a record but isn't surprised by silent overwrites.
+  const payload = {
+    title: project.title,
+    category: project.category,
+    status: newStatus,
+    description: project.description,
+    startDate: project.startDate,
+    completionDate: project.completionDate,
+    location: project.location,
+    searchTerms: project.searchTerms,
+    links: project.links,
+    lastAutoRefresh: today,
+  };
+
+  await PTW.updateProject(project.id, payload);
+
+  if (statusChanged) {
+    const comment =
+      `**Weekly auto-refresh · ${today}**\n\n` +
+      `Status changed from **${project.status}** → **${newStatus}** based on Claude web search.\n\n` +
+      (data.description ? `_${data.description}_\n\n` : "") +
+      (Array.isArray(data.links) && data.links.length
+        ? `Sources:\n${data.links.map((l) => `- ${l}`).join("\n")}`
+        : "");
+    try {
+      await PTW.addUpdate(project.id, comment);
+    } catch (e) {
+      console.warn("Could not add audit comment:", e);
+    }
+    return {
+      changed: true,
+      title: project.title,
+      fromStatus: project.status,
+      toStatus: newStatus,
+    };
+  }
+  return { changed: false };
+}
+
+function sleep(ms) { return new Promise((res) => setTimeout(res, ms)); }
+
+async function manualRefreshProject(id) {
+  const project = state.projects.find((p) => p.id === id);
+  if (!project) return;
+  if (!PTW_Claude.isConfigured()) {
+    toast("Add an Anthropic API key in Settings to use refresh", "error");
+    return;
+  }
+  toast(`Checking ${project.title}…`);
+  try {
+    const result = await refreshSingleProject(project);
+    if (result.changed) {
+      toast(`Status: ${result.fromStatus} → ${result.toStatus}`, "success");
+    } else {
+      toast("Nothing has shifted.", "success");
+    }
+    await reloadProjects();
+    // Reopen the detail view so the user sees the fresh info.
+    openDetail(id);
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
 // ---------- Modal helpers ----------
 function openModal(id) { $(id).classList.remove("hidden"); }
 function closeModal(id) { $(id).classList.add("hidden"); }
@@ -675,6 +818,12 @@ async function reloadProjects() {
   } finally {
     $("loading").classList.add("hidden");
   }
+}
+
+async function loadAndMaybeRefresh() {
+  await reloadProjects();
+  // Run the weekly check in the background so it doesn't block initial render.
+  maybeRunWeeklyRefresh();
 }
 
 // ---------- Wire up event listeners ----------
@@ -723,9 +872,10 @@ function init() {
       if (e.target === m) m.classList.add("hidden");
     });
   });
+  $("refresh-banner-close").addEventListener("click", hideBanner);
 
   renderFilterChips();
-  reloadProjects();
+  loadAndMaybeRefresh();
 }
 
 document.addEventListener("DOMContentLoaded", init);
