@@ -5,6 +5,7 @@
 const PTW_News = (() => {
   const CACHE_PREFIX = "ptw_news_";
   const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+  const MAX_AGE_MS = 6 * 30 * 24 * 60 * 60 * 1000; // ~6 months
 
   function buildQuery(project) {
     const terms = (project.searchTerms || project.title || "")
@@ -37,13 +38,21 @@ const PTW_News = (() => {
       if (!res.ok) throw new Error(`News fetch failed: ${res.status}`);
       const json = await res.json();
       if (json.status !== "ok") throw new Error(json.message || "News fetch returned error");
-      const items = (json.items || []).slice(0, 10).map((it) => ({
-        title: it.title,
-        link: it.link,
-        source: extractSource(it.title, it.author),
-        publishedAt: it.pubDate,
-        snippet: stripHtml(it.description).slice(0, 200),
-      }));
+      const cutoff = Date.now() - MAX_AGE_MS;
+      const items = (json.items || [])
+        .map((it) => ({
+          title: it.title,
+          link: it.link,
+          source: extractSource(it.title, it.author),
+          publishedAt: it.pubDate,
+          snippet: stripHtml(it.description).slice(0, 200),
+        }))
+        .filter((it) => {
+          if (!it.publishedAt) return false;
+          const t = new Date(it.publishedAt).getTime();
+          return Number.isFinite(t) && t >= cutoff;
+        })
+        .slice(0, 10);
       localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), items }));
       return items;
     } catch (err) {
