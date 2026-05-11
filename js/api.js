@@ -76,6 +76,7 @@ const PTW = (() => {
       location: data.location || "",
       searchTerms: data.searchTerms || "",
       links: data.links || [],
+      phases: Array.isArray(data.phases) ? data.phases : [],
       lastAutoRefresh: data.lastAutoRefresh || "",
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
@@ -126,6 +127,7 @@ const PTW = (() => {
       location: p.location,
       searchTerms: p.searchTerms,
       links: p.links,
+      phases: Array.isArray(p.phases) ? p.phases : [],
       lastAutoRefresh: p.lastAutoRefresh || "",
     };
     const issue = await gh(`/repos/${getRepo()}/issues`, {
@@ -150,6 +152,7 @@ const PTW = (() => {
       location: p.location,
       searchTerms: p.searchTerms,
       links: p.links,
+      phases: Array.isArray(p.phases) ? p.phases : [],
       lastAutoRefresh: p.lastAutoRefresh || "",
     };
     const state = p.status === "Completed" || p.status === "Cancelled" ? "closed" : "open";
