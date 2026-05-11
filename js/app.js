@@ -194,16 +194,13 @@ function renderTimeline() {
   const now = Date.now();
 
   // ---------- Density-aware horizontal positioning ----------
-  // Each event gets at least MIN_GAP between neighbors. If two events are
-  // far apart in time, we add a proportional bonus capped at MAX_GAP so
-  // empty stretches don't blow the timeline up.
-  const MIN_GAP = 220;
+  const MIN_GAP = 230;
   const MAX_GAP = 360;
   const PX_PER_YEAR = 240;
-  const CALLOUT_W = 200;
+  const CALLOUT_W = 180;
   const CALLOUT_HALF = CALLOUT_W / 2;
-  const EDGE_PAD = CALLOUT_HALF + 40;
-  const LANE_STEP = 140;
+  const EDGE_PAD = CALLOUT_HALF + 70;  // generous so callouts never hug the viewing-box edge
+  const LANE_STEP = 150;
   const BASE_STEM = 70;
 
   // Insert "today" as a virtual event so the today marker has a slot.
@@ -250,17 +247,35 @@ function renderTimeline() {
     x: xs.reduce((a, b) => a + b, 0) / xs.length,
   }));
 
-  // ---------- Lane-pack callouts so they don't overlap ----------
+  // ---------- Lane-pack callouts ----------
+  // Each lane stores the [left, right] range of every placed callout. To put
+  // an event in lane i we need (a) no horizontal overlap with anything else
+  // in that lane and (b) the event's stem at x must not pass straight through
+  // a callout sitting in any lower lane (those callouts are between the
+  // stem's tip and the axis).
   const aboveLanes = [];
   const belowLanes = [];
+  const STEM_PAD = 6;
   function placeInLane(x, lanes) {
+    const leftEdge = x - CALLOUT_HALF - 12;
+    const rightEdge = x + CALLOUT_HALF + 12;
     for (let i = 0; i < lanes.length; i++) {
-      if (x - CALLOUT_HALF - 12 >= lanes[i]) {
-        lanes[i] = x + CALLOUT_HALF;
-        return i;
+      const sameLaneClash = lanes[i].some(([l, r]) =>
+        !(rightEdge <= l || leftEdge >= r)
+      );
+      if (sameLaneClash) continue;
+      let stemThroughLower = false;
+      for (let j = 0; j < i; j++) {
+        if (lanes[j].some(([l, r]) => x > l - STEM_PAD && x < r + STEM_PAD)) {
+          stemThroughLower = true;
+          break;
+        }
       }
+      if (stemThroughLower) continue;
+      lanes[i].push([x - CALLOUT_HALF, x + CALLOUT_HALF]);
+      return i;
     }
-    lanes.push(x + CALLOUT_HALF);
+    lanes.push([[x - CALLOUT_HALF, x + CALLOUT_HALF]]);
     return lanes.length - 1;
   }
   for (let i = 0; i < enriched.length; i++) {
@@ -293,15 +308,21 @@ function renderTimeline() {
     yearsRow.append(el("div", { class: "tl-year", style: `left:${ym.x}px` }, String(ym.year)));
   }
 
-  // Today marker — vertical line from bottom of "above" section
-  // down through years + axis. Avoids cutting through the year text.
+  // Today marker — a bullseye dot sitting on the axis, with a label
+  // tucked beneath. No vertical line cutting through the rest of the chart.
   if (todayX !== undefined) {
-    const todayTop = aboveHeight - 8;
-    const todayHeight = yearsHeight + axisHeight + 16;
-    content.append(el("div", {
+    axis.append(el("div", {
       class: "tl-today",
-      style: `left:${todayX}px;top:${todayTop}px;height:${todayHeight}px`,
-    }, el("span", { class: "tl-today-label" }, "today")));
+      style: `left:${todayX}px`,
+      title: "today",
+    },
+      el("div", { class: "tl-today-ring" }),
+      el("div", { class: "tl-today-core" }),
+    ));
+    axis.append(el("div", {
+      class: "tl-today-label",
+      style: `left:${todayX}px`,
+    }, "today"));
   }
 
   for (const ev of enriched) {

@@ -301,24 +301,43 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
   white-space: nowrap;
 }
 
+/* Today — bullseye on the axis instead of a cutting line */
 .tl-today {
   position: absolute;
-  width: 1px;
-  background: var(--accent);
-  z-index: 1;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  z-index: 4;
   pointer-events: none;
+}
+.tl-today-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--bg-elev);
+}
+.tl-today-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
 }
 .tl-today-label {
   position: absolute;
-  top: -1.1rem;
-  left: 6px;
+  top: calc(50% + 18px);
+  transform: translateX(-50%);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--accent);
-  background: var(--bg-elev);
-  padding: 0 4px;
   white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Phase dots on the axis */
@@ -369,26 +388,26 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 0.5rem 0.7rem;
+  padding: 0.45rem 0.65rem;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
   z-index: 2;
   font-family: var(--serif);
+  font-size: 0.85rem;
+  line-height: 1.3;
 }
 .tl-callout:hover {
   border-color: var(--accent);
   box-shadow: 0 3px 12px rgba(46, 59, 54, 0.08);
+  z-index: 5;
 }
-.tl-callout.future {
-  background: var(--bg-elev);
-}
+.tl-callout.future { background: var(--bg-elev); }
 .tl-callout[data-status="Completed"]:hover { border-color: var(--success); }
 .tl-callout[data-status="Cancelled"] { opacity: 0.7; }
 
 .tl-callout-project {
   color: var(--text);
   font-weight: 500;
-  line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -397,8 +416,8 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
 .tl-callout-phase {
   font-style: italic;
   color: var(--accent);
-  margin-top: 0.25rem;
-  font-size: 0.82rem;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
 }
 .tl-callout.future .tl-callout-phase { color: var(--accent-soft); }
 .tl-callout[data-status="Completed"] .tl-callout-phase { color: var(--success); }
