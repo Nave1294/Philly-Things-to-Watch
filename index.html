@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Philly Things to Watch</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="bell">🔔</span>
+      <h1>Philly Things to Watch</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="view-timeline" class="view-btn active">Timeline</button>
+      <button id="view-map" class="view-btn">Map</button>
+      <button id="add-project-btn" class="primary">+ Add Project</button>
+      <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <section class="controls">
+    <input id="search" type="search" placeholder="Search projects..." />
+    <div class="filter-group">
+      <label>Category:</label>
+      <div id="category-filters" class="chip-row"></div>
+    </div>
+    <div class="filter-group">
+      <label>Status:</label>
+      <div id="status-filters" class="chip-row"></div>
+    </div>
+    <div class="filter-group">
+      <label>Sort:</label>
+      <select id="sort-select">
+        <option value="updated-desc">Recently updated</option>
+        <option value="created-desc">Newest first</option>
+        <option value="created-asc">Oldest first</option>
+        <option value="completion-asc">Soonest completion</option>
+        <option value="status">By status</option>
+      </select>
+    </div>
+  </section>
+
+  <main>
+    <div id="empty-state" class="empty hidden">
+      <h2>No projects yet</h2>
+      <p>Click <strong>+ Add Project</strong> to start tracking something happening in Philly.</p>
+    </div>
+
+    <div id="loading" class="loading">Loading projects...</div>
+
+    <div id="timeline-view" class="timeline-view"></div>
+
+    <div id="map-view" class="map-view hidden">
+      <div id="map"></div>
+    </div>
+  </main>
+
+  <!-- Settings / Token Modal -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <button class="close-btn" data-close="settings-modal">×</button>
+      <h2>Settings</h2>
+      <p class="muted">
+        Your GitHub Personal Access Token is stored only in this browser's
+        localStorage. It never leaves your device except to talk to the GitHub API.
+      </p>
+      <label for="repo-input">Repository (owner/repo)</label>
+      <input id="repo-input" type="text" placeholder="username/philly-things-to-watch" />
+      <label for="token-input">GitHub Personal Access Token</label>
+      <input id="token-input" type="password" placeholder="ghp_..." />
+      <p class="muted small">
+        Needs <code>repo</code> scope (or <code>public_repo</code> if your repo is public).
+        Create one at <a href="https://github.com/settings/tokens/new?scopes=repo&description=Philly%20Things%20to%20Watch" target="_blank">github.com/settings/tokens</a>.
+      </p>
+      <div class="modal-actions">
+        <button id="save-settings" class="primary">Save</button>
+        <button id="clear-settings">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit Project Modal -->
+  <div id="project-form-modal" class="modal hidden">
+    <div class="modal-content wide">
+      <button class="close-btn" data-close="project-form-modal">×</button>
+      <h2 id="project-form-title">Add Project</h2>
+      <form id="project-form">
+        <input type="hidden" id="project-id" />
+        <label>Name</label>
+        <input id="project-name" type="text" required placeholder="e.g. Roosevelt Boulevard Subway" />
+
+        <label>Category</label>
+        <select id="project-category" required>
+          <option value="Transportation">Transportation</option>
+          <option value="Development">Development</option>
+          <option value="Parks & Public Space">Parks & Public Space</option>
+          <option value="Trials & Legal">Trials & Legal</option>
+          <option value="Politics">Politics</option>
+          <option value="Sports & Stadiums">Sports & Stadiums</option>
+          <option value="Events">Events</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <label>Status</label>
+        <select id="project-status" required>
+          <option value="Proposed">Proposed</option>
+          <option value="Planning">Planning</option>
+          <option value="Approved">Approved</option>
+          <option value="In Progress">In Progress</option>
+          <option value="On Hold">On Hold / Stalled</option>
+          <option value="Completed">Completed</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+
+        <label>Description</label>
+        <textarea id="project-description" rows="4" placeholder="What's this project about?"></textarea>
+
+        <div class="form-row">
+          <div>
+            <label>Start date</label>
+            <input id="project-start" type="date" />
+          </div>
+          <div>
+            <label>Estimated completion</label>
+            <input id="project-completion" type="date" />
+          </div>
+        </div>
+
+        <label>Neighborhood / Location</label>
+        <input id="project-location" type="text" placeholder="e.g. Fishtown, Center City, 1500 Market St" />
+
+        <label>Search terms for news (comma-separated)</label>
+        <input id="project-search-terms" type="text" placeholder="e.g. Roosevelt Boulevard Subway, SEPTA Boulevard Line" />
+
+        <label>Links (one per line)</label>
+        <textarea id="project-links" rows="3" placeholder="https://example.com/article&#10;https://example.com/source"></textarea>
+
+        <div class="modal-actions">
+          <button type="submit" class="primary">Save Project</button>
+          <button type="button" id="delete-project" class="danger hidden">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Project Detail Modal -->
+  <div id="project-detail-modal" class="modal hidden">
+    <div class="modal-content wide">
+      <button class="close-btn" data-close="project-detail-modal">×</button>
+      <div id="project-detail-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/news.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
