@@ -160,6 +160,25 @@ function filteredProjects() {
   return list;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PX_PER_DAY = 3;            // 3px/day ≈ 90px/month — ~12 months in a 1080px viewport
+const LABEL_WIDTH = 240;
+const ROW_HEIGHT = 52;
+const HEADER_HEIGHT = 44;
+
+function startOfMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function addMonths(d, n) {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + n);
+  return x;
+}
+function dateToX(date, start) {
+  const days = (new Date(date).getTime() - start.getTime()) / DAY_MS;
+  return days * PX_PER_DAY;
+}
+
 function renderTimeline() {
   const wrap = $("timeline-view");
   const list = filteredProjects();
@@ -170,22 +189,136 @@ function renderTimeline() {
   if (list.length === 0) {
     wrap.append(el("p", { class: "muted", style: "text-align:center;padding:2rem" },
       "No projects match the current filters."));
+    return;
   }
 
+  // Compute the time range across all phases.
+  const now = new Date();
+  const allDates = [];
   for (const p of list) {
-    const card = el("div", {
-      class: "project-card",
-      dataset: { status: p.status, id: p.id },
-      onclick: () => openDetail(p.id),
-    });
-    card.append(
-      el("div", { class: "card-row" },
-        el("h3", { class: "card-title" }, p.title),
-        statusBadge(p.status),
-      ),
-    );
-    wrap.append(card);
+    for (const ph of getProjectPhases(p)) {
+      const t = new Date(ph.date).getTime();
+      if (Number.isFinite(t)) allDates.push(t);
+    }
   }
+  let minTs = allDates.length ? Math.min(...allDates) : now.getTime() - 90 * DAY_MS;
+  let maxTs = allDates.length ? Math.max(...allDates) : now.getTime() + 365 * DAY_MS;
+  // Always include "today" plus 2 months of padding on each side.
+  minTs = Math.min(minTs, now.getTime() - 60 * DAY_MS);
+  maxTs = Math.max(maxTs, now.getTime() + 60 * DAY_MS);
+  const start = startOfMonth(new Date(minTs - 30 * DAY_MS));
+  const endRaw = new Date(maxTs + 30 * DAY_MS);
+  const end = startOfMonth(addMonths(endRaw, 1));
+  const totalDays = (end.getTime() - start.getTime()) / DAY_MS;
+  const totalWidth = Math.max(totalDays * PX_PER_DAY, 1080);
+
+  const gantt = el("div", { class: "gantt" });
+
+  // ---------- Header (month / year scale) ----------
+  const header = el("div", { class: "gantt-header" });
+  header.append(el("div", { class: "gantt-corner" },
+    el("span", { class: "muted small" }, "project")));
+  const scale = el("div", { class: "gantt-scale", style: `width:${totalWidth}px` });
+
+  let m = new Date(start);
+  let lastYear = null;
+  while (m < end) {
+    const x = dateToX(m, start);
+    const monthWidth = ((addMonths(m, 1) - m) / DAY_MS) * PX_PER_DAY;
+    const yearLabel = m.getFullYear() !== lastYear;
+    lastYear = m.getFullYear();
+    scale.append(el("div", {
+      class: "gantt-month",
+      style: `left:${x}px;width:${monthWidth}px`,
+    },
+      yearLabel ? el("div", { class: "gantt-year-label" }, String(m.getFullYear())) : null,
+      el("div", { class: "gantt-month-label" },
+        m.toLocaleDateString(undefined, { month: "short" })),
+    ));
+    m = addMonths(m, 1);
+  }
+  header.append(scale);
+  gantt.append(header);
+
+  // ---------- Rows ----------
+  const todayX = dateToX(now, start);
+  const rows = el("div", { class: "gantt-rows" });
+  for (const p of list) {
+    const phases = getProjectPhases(p);
+    const row = el("div", {
+      class: "gantt-row",
+      dataset: { status: p.status },
+    });
+    const label = el("div", {
+      class: "gantt-label",
+      onclick: () => openDetail(p.id),
+    },
+      el("h3", { class: "gantt-label-title" }, p.title),
+      statusBadge(p.status),
+    );
+    row.append(label);
+
+    const track = el("div", { class: "gantt-track", style: `width:${totalWidth}px` });
+
+    // Month grid lines on the track
+    let mm = new Date(start);
+    while (mm < end) {
+      const x = dateToX(mm, start);
+      track.append(el("div", { class: "gantt-gridline", style: `left:${x}px` }));
+      mm = addMonths(mm, 1);
+    }
+
+    // Today line
+    if (todayX >= 0 && todayX <= totalWidth) {
+      track.append(el("div", { class: "gantt-today", style: `left:${todayX}px` }));
+    }
+
+    // Connecting line between first and last phase
+    if (phases.length >= 2) {
+      const firstX = dateToX(phases[0].date, start);
+      const lastX = dateToX(phases[phases.length - 1].date, start);
+      track.append(el("div", {
+        class: "gantt-phase-line",
+        style: `left:${firstX}px;width:${Math.max(0, lastX - firstX)}px`,
+      }));
+    }
+
+    // Phase dots
+    for (const ph of phases) {
+      const x = dateToX(ph.date, start);
+      const isPast = new Date(ph.date).getTime() <= now.getTime();
+      const dot = el("div", {
+        class: `gantt-phase ${isPast ? "past" : "future"}`,
+        style: `left:${x}px`,
+        title: `${ph.name} · ${formatDate(ph.date)}`,
+        onclick: (ev) => { ev.stopPropagation(); openDetail(p.id); },
+      },
+        el("span", { class: "gantt-phase-dot" }),
+        el("span", { class: "gantt-phase-label" }, ph.name),
+      );
+      track.append(dot);
+    }
+
+    if (phases.length === 0) {
+      track.append(el("div", { class: "gantt-no-dates", style: `left:${todayX + 12}px` },
+        "no dates set — click to add"));
+      track.style.cursor = "pointer";
+      track.onclick = () => openEdit(p.id);
+    }
+
+    row.append(track);
+    rows.append(row);
+  }
+  gantt.append(rows);
+
+  wrap.append(gantt);
+
+  // Scroll so "today" sits about a quarter from the left on first render
+  setTimeout(() => {
+    const target = todayX - 150;
+    gantt.scrollLeft = Math.max(0, target);
+  }, 0);
+
   if (state.view === "map") renderMap();
 }
 
@@ -231,14 +364,31 @@ async function openDetail(id) {
     el("div", { class: "detail-section" },
       el("h3", {}, "Details"),
       el("div", { class: "detail-meta-grid" },
-        metaTile("Start", formatDate(p.startDate) || "—"),
-        metaTile("Target completion", formatDate(p.completionDate) || "—"),
         metaTile("Location", p.location || "—"),
         metaTile("Created", formatDate(p.createdAt)),
         metaTile("Last update", relativeTime(p.updatedAt)),
       ),
     ),
   );
+
+  // Phases section
+  const phases = getProjectPhases(p);
+  if (phases.length) {
+    const today = Date.now();
+    const phaseList = el("ol", { class: "phase-list" });
+    for (const ph of phases) {
+      const isPast = new Date(ph.date).getTime() <= today;
+      phaseList.append(el("li", { class: `phase-list-item ${isPast ? "past" : "future"}` },
+        el("span", { class: "phase-list-dot" }),
+        el("span", { class: "phase-list-date" }, formatDate(ph.date)),
+        el("span", { class: "phase-list-name" }, ph.name),
+      ));
+    }
+    body.append(el("div", { class: "detail-section" },
+      el("h3", {}, "Phases"),
+      phaseList,
+    ));
+  }
 
   if (p.links && p.links.length) {
     const ul = el("ul", { class: "links-list" });
@@ -349,8 +499,47 @@ function openEdit(id) {
   $("project-location").value = p.location || "";
   $("project-search-terms").value = p.searchTerms || "";
   $("project-links").value = (p.links || []).join("\n");
+  $("project-phases").value = serializePhases(p.phases);
   $("delete-project").classList.remove("hidden");
   openModal("project-form-modal");
+}
+
+// ---------- Phases parsing ----------
+function parsePhases(text) {
+  if (!text) return [];
+  return text.split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      // Accept "YYYY-MM-DD: Name" or "YYYY-MM-DD - Name" or "YYYY-MM: Name"
+      const m = line.match(/^(\d{4}-\d{2}(?:-\d{2})?)\s*[:\-–]\s*(.+)$/);
+      if (!m) return null;
+      let date = m[1];
+      if (date.length === 7) date += "-01";
+      return { date, name: m[2].trim() };
+    })
+    .filter(Boolean);
+}
+function serializePhases(phases) {
+  if (!Array.isArray(phases)) return "";
+  return phases
+    .filter((p) => p && p.date && p.name)
+    .map((p) => `${p.date}: ${p.name}`)
+    .join("\n");
+}
+
+function getProjectPhases(project) {
+  if (Array.isArray(project.phases) && project.phases.length) {
+    return project.phases
+      .filter((ph) => ph && ph.date && ph.name)
+      .slice()
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  }
+  // Fall back to startDate/completionDate so legacy projects still render.
+  const fallback = [];
+  if (project.startDate) fallback.push({ name: "Started", date: project.startDate });
+  if (project.completionDate) fallback.push({ name: "Completion", date: project.completionDate });
+  return fallback;
 }
 
 async function handleSaveProject(e) {
@@ -366,6 +555,7 @@ async function handleSaveProject(e) {
     location: $("project-location").value.trim(),
     searchTerms: $("project-search-terms").value.trim(),
     links: $("project-links").value.split("\n").map((s) => s.trim()).filter(Boolean),
+    phases: parsePhases($("project-phases").value),
   };
   try {
     if (id) {
@@ -684,6 +874,10 @@ function applyAutofill(data) {
   if (Array.isArray(data.links) && data.links.length) {
     $("project-links").value = data.links.join("\n");
   }
+  if (Array.isArray(data.phases) && data.phases.length) {
+    const cleaned = data.phases.filter((ph) => ph && ph.date && ph.name);
+    $("project-phases").value = serializePhases(cleaned);
+  }
 }
 
 // ---------- Bi-weekly auto-refresh ----------
@@ -764,6 +958,13 @@ async function refreshSingleProject(project) {
   const newStatus = STATUSES.includes(data.status) ? data.status : project.status;
   const statusChanged = newStatus !== project.status;
 
+  // Merge Claude's phases with existing ones — if Claude returns new dated
+  // phases, adopt them; otherwise keep what the user already had so manual
+  // edits aren't blown away by auto-refresh.
+  const mergedPhases = Array.isArray(data.phases) && data.phases.length
+    ? data.phases.filter((ph) => ph && ph.date && ph.name)
+    : project.phases || [];
+
   const payload = {
     title: project.title,
     category: project.category,
@@ -774,6 +975,7 @@ async function refreshSingleProject(project) {
     location: project.location,
     searchTerms: project.searchTerms,
     links: project.links,
+    phases: mergedPhases,
     lastAutoRefresh: today,
   };
 

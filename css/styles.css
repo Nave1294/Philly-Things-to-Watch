@@ -226,7 +226,7 @@ button.icon-btn { padding: 0.45rem 0.85rem; font-size: 1.05rem; }
 }
 
 /* ------- Main ------- */
-main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
+main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
 .loading {
   text-align: center;
   padding: 3rem;
@@ -250,117 +250,235 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
 }
 .empty p { font-family: var(--serif); font-style: italic; }
 
-/* ------- Timeline ------- */
-.timeline-view {
-  position: relative;
-  padding-left: 2rem;
-}
-.timeline-view::before {
-  content: "";
-  position: absolute;
-  left: 0.4rem;
-  top: 0.5rem;
-  bottom: 0.5rem;
-  width: 1px;
-  background: var(--border);
-}
+/* ------- Horizontal Gantt timeline ------- */
+.timeline-view { padding: 0; }
 
-.project-card {
-  position: relative;
+.gantt {
+  overflow-x: auto;
+  overflow-y: visible;
   background: var(--bg-elev);
   border: 1px solid var(--border-soft);
   border-radius: 4px;
-  padding: 0.7rem 1.1rem;
-  margin-bottom: 0.4rem;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  font-family: var(--sans);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
-.project-card:hover {
-  border-color: var(--accent);
-  background: var(--bg);
-}
-.card-row {
+.gantt::-webkit-scrollbar { height: 10px; }
+.gantt::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+.gantt::-webkit-scrollbar-track { background: transparent; }
+
+.gantt-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
+  align-items: stretch;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  height: 44px;
 }
-.card-row .card-title {
+.gantt-corner {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+.gantt-scale {
+  position: relative;
+  height: 44px;
+  flex-shrink: 0;
+}
+.gantt-month {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-left: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 0.4rem;
+}
+.gantt-month-label {
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+.gantt-year-label {
+  font-family: var(--serif);
+  color: var(--text);
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.gantt-rows { position: relative; }
+.gantt-row {
+  display: flex;
+  align-items: stretch;
+  height: 52px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.gantt-row:last-child { border-bottom: none; }
+.gantt-row:hover .gantt-label { background: var(--bg-soft); }
+
+.gantt-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--bg-elev);
+  border-right: 1px solid var(--border);
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.gantt-label-title {
   margin: 0;
   font-family: var(--serif);
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 500;
   color: var(--text);
-  letter-spacing: -0.005em;
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
-.card-row .badge { flex-shrink: 0; }
+.gantt-row[data-status="Cancelled"] .gantt-label-title {
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--border);
+}
 
-/* Timeline dot — shape/fill conveys status, not color */
-.project-card::before {
-  content: "";
+.gantt-track {
+  position: relative;
+  flex-shrink: 0;
+  height: 52px;
+}
+.gantt-gridline {
   position: absolute;
-  left: -1.95rem;
-  top: 1.05rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-soft);
+  opacity: 0.5;
+}
+.gantt-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--accent);
+  z-index: 1;
+}
+.gantt-today::before {
+  content: "today";
+  position: absolute;
+  top: -1px;
+  left: 4px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.7rem;
+  color: var(--accent);
+  background: var(--bg-elev);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.gantt-phase-line {
+  position: absolute;
+  top: calc(50% - 1px);
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.35;
+  border-radius: 1px;
+}
+.gantt-row[data-status="Completed"] .gantt-phase-line { background: var(--success); }
+.gantt-row[data-status="Cancelled"] .gantt-phase-line { background: var(--neutral); }
+
+.gantt-phase {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  z-index: 2;
+  padding: 4px 0;
+}
+.gantt-phase-dot {
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: var(--bg);
+  background: var(--bg-elev);
   border: 1.5px solid var(--accent);
   box-sizing: border-box;
+  transition: transform 0.12s;
 }
-.project-card[data-status="Planning"]::before { border-style: dashed; }
-.project-card[data-status="Approved"]::before {
-  border-radius: 0;
-  transform: rotate(45deg);
-  top: 1.1rem;
+.gantt-phase.past .gantt-phase-dot {
+  background: var(--accent);
 }
-.project-card[data-status="In Progress"]::before { background: var(--accent); }
-.project-card[data-status="On Hold"]::before {
-  background: linear-gradient(to right, var(--accent) 50%, var(--bg) 50%);
+.gantt-phase.future .gantt-phase-dot {
+  background: var(--bg-elev);
+  border-style: solid;
 }
-.project-card[data-status="Completed"]::before {
-  border-color: var(--success);
+.gantt-row[data-status="Completed"] .gantt-phase.past .gantt-phase-dot {
   background: var(--success);
+  border-color: var(--success);
 }
-.project-card[data-status="Completed"]::after {
-  content: "✓";
+.gantt-row[data-status="Completed"] .gantt-phase-dot { border-color: var(--success); }
+.gantt-row[data-status="Cancelled"] .gantt-phase-dot {
+  border-color: var(--neutral);
+  background: var(--bg-elev);
+}
+.gantt-phase:hover .gantt-phase-dot {
+  transform: scale(1.3);
+}
+.gantt-phase-label {
   position: absolute;
-  left: -1.95rem;
-  top: 0.75rem;
-  width: 11px;
-  height: 11px;
-  text-align: center;
-  font-size: 0.7rem;
-  color: var(--bg-elev);
-  line-height: 11px;
-  font-weight: 700;
+  top: 100%;
+  margin-top: 2px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  white-space: nowrap;
+  background: var(--bg-elev);
+  padding: 1px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 3;
 }
-.project-card[data-status="Cancelled"]::before {
-  border: none;
-  background: transparent;
-}
-.project-card[data-status="Cancelled"]::after {
-  content: "×";
+.gantt-phase:hover .gantt-phase-label { opacity: 1; }
+
+.gantt-no-dates {
   position: absolute;
-  left: -2rem;
-  top: 0.65rem;
-  width: 14px;
-  height: 14px;
-  color: var(--neutral);
-  font-size: 1.1rem;
-  line-height: 14px;
-  text-align: center;
-}
-.project-card[data-status="Cancelled"] .card-title {
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--serif);
+  font-style: italic;
   color: var(--text-dim);
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
-  text-decoration-color: var(--border);
+  font-size: 0.85rem;
 }
 
 .card-header {
@@ -649,6 +767,42 @@ main { padding: 0 1.5rem 3rem; max-width: 1000px; margin: 0 auto; }
   font-size: 1rem;
 }
 .news-item a:hover { text-decoration: underline; }
+
+.phase-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.phase-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.85rem;
+  border-left: 1px solid var(--border);
+  margin-left: 0.4rem;
+  position: relative;
+  font-family: var(--serif);
+}
+.phase-list-dot {
+  position: absolute;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--accent);
+  box-sizing: border-box;
+}
+.phase-list-item.past .phase-list-dot { background: var(--accent); }
+.phase-list-date {
+  font-style: italic;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  width: 110px;
+}
+.phase-list-name { color: var(--text); }
+.phase-list-item.future .phase-list-name { color: var(--text-soft); }
 
 .links-list {
   padding-left: 1.2rem;

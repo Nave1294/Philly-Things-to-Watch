@@ -37,11 +37,22 @@ Respond with ONLY a JSON object — no markdown fences, no prose before or after
   "location": "<Philly neighborhood or street address>",
   "searchTerms": "<comma-separated phrases useful for tracking future news>",
   "links": ["<2-4 relevant URLs: official source, Wikipedia, recent news articles>"],
+  "phases": [
+    {"name": "<short phase name, e.g. 'Proposed', 'Groundbreaking', 'Construction begins', 'Service starts', 'Completion'>", "date": "<YYYY-MM-DD>"}
+  ],
   "confidence": "<high | medium | low>",
   "clarifyingQuestion": "<question string, or null if no ambiguity>"
 }
 
-Use empty strings or empty arrays for unknown fields. Never invent dates.`;
+For "phases": list every major dated milestone you can verify — both past (already happened) and expected (scheduled). Aim for 3-6 phases. Typical examples:
+- Buildings: Proposed → Approved → Groundbreaking → Topping out → Completion
+- Transit projects: Proposed → Environmental review → Funded → Construction begins → Service starts
+- Stadiums/arenas: Proposed → City approval → Groundbreaking → Opening
+- Parks: Proposed → Funded → Construction begins → Opens to public
+- Trials: Charges filed → Trial begins → Verdict → Sentencing/Appeal
+Use the actual or projected date if known; omit phases whose dates aren't reasonably knowable. Never invent dates.
+
+Use empty strings or empty arrays for unknown fields.`;
 
   async function lookupProject(name) {
     if (!getKey()) throw new Error("Claude API key not configured. Add one in Settings.");
