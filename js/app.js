@@ -21,25 +21,17 @@ const STATUSES = [
   "Cancelled",
 ];
 
-const CAT_COLORS = {
-  "Transportation": "var(--cat-transportation)",
-  "Development": "var(--cat-development)",
-  "Parks & Public Space": "var(--cat-parks)",
-  "Trials & Legal": "var(--cat-trials)",
-  "Politics": "var(--cat-politics)",
-  "Sports & Stadiums": "var(--cat-sports)",
-  "Events": "var(--cat-events)",
-  "Other": "var(--cat-other)",
-};
-
-const STATUS_COLORS = {
-  "Proposed": "var(--st-proposed)",
-  "Planning": "var(--st-planning)",
-  "Approved": "var(--st-approved)",
-  "In Progress": "var(--st-inprogress)",
-  "On Hold": "var(--st-onhold)",
-  "Completed": "var(--st-completed)",
-  "Cancelled": "var(--st-cancelled)",
+// Category glyphs — small typographic marks differentiate categories
+// without introducing new colors. All share the accent tint.
+const CAT_GLYPHS = {
+  "Transportation": "→",
+  "Development": "▣",
+  "Parks & Public Space": "❀",
+  "Trials & Legal": "§",
+  "Politics": "¶",
+  "Sports & Stadiums": "◉",
+  "Events": "✦",
+  "Other": "·",
 };
 
 const state = {
@@ -117,20 +109,16 @@ function renderFilterChips() {
   catWrap.innerHTML = "";
   statusWrap.innerHTML = "";
   for (const c of CATEGORIES) {
-    const chip = el("div", {
+    catWrap.append(el("div", {
       class: state.activeCategories.has(c) ? "chip active" : "chip",
       onclick: () => toggleSet(state.activeCategories, c, renderFilterChips),
-    }, c);
-    if (state.activeCategories.has(c)) chip.style.background = CAT_COLORS[c];
-    catWrap.append(chip);
+    }, c));
   }
   for (const s of STATUSES) {
-    const chip = el("div", {
+    statusWrap.append(el("div", {
       class: state.activeStatuses.has(s) ? "chip active" : "chip",
       onclick: () => toggleSet(state.activeStatuses, s, renderFilterChips),
-    }, s);
-    if (state.activeStatuses.has(s)) chip.style.background = STATUS_COLORS[s];
-    statusWrap.append(chip);
+    }, s));
   }
   renderTimeline();
 }
@@ -190,17 +178,12 @@ function renderTimeline() {
       dataset: { status: p.status, id: p.id },
       onclick: () => openDetail(p.id),
     });
-    const catColor = CAT_COLORS[p.category] || "var(--cat-other)";
-    const stColor = STATUS_COLORS[p.status] || "var(--st-proposed)";
 
     card.append(
       el("div", { class: "card-header" },
         el("h3", { class: "card-title" }, p.title),
       ),
-      el("div", { class: "card-meta" },
-        el("span", { class: "badge badge-cat", style: `color:${catColor};` }, p.category),
-        el("span", { class: "badge badge-status", style: `color:${stColor};` }, p.status),
-      ),
+      el("div", { class: "card-meta" }, categoryBadge(p.category), statusBadge(p.status)),
       p.description ? el("p", { class: "card-desc" }, p.description) : null,
       el("div", { class: "card-footer" },
         el("span", { class: "card-location" }, p.location || "—"),
@@ -208,11 +191,20 @@ function renderTimeline() {
         el("span", { class: "updated" }, `Updated ${relativeTime(p.updatedAt)}`),
       ),
     );
-    // Tint the timeline dot to match category.
-    card.style.setProperty("--accent", catColor);
     wrap.append(card);
   }
   if (state.view === "map") renderMap();
+}
+
+// Badge factories
+function categoryBadge(cat) {
+  return el("span", { class: "badge badge-cat" },
+    el("span", { class: "cat-glyph" }, CAT_GLYPHS[cat] || "·"),
+    cat,
+  );
+}
+function statusBadge(status) {
+  return el("span", { class: "badge badge-status", dataset: { status } }, status);
 }
 
 // ---------- Detail modal ----------
@@ -222,16 +214,10 @@ async function openDetail(id) {
   const body = $("project-detail-body");
   body.innerHTML = "";
 
-  const catColor = CAT_COLORS[p.category] || "var(--cat-other)";
-  const stColor = STATUS_COLORS[p.status] || "var(--st-proposed)";
-
   body.append(
     el("div", { class: "detail-header" },
       el("h2", { class: "detail-title" }, p.title),
-      el("div", { class: "card-meta" },
-        el("span", { class: "badge badge-cat", style: `color:${catColor};` }, p.category),
-        el("span", { class: "badge badge-status", style: `color:${stColor};` }, p.status),
-      ),
+      el("div", { class: "card-meta" }, categoryBadge(p.category), statusBadge(p.status)),
       el("div", { class: "detail-actions" },
         el("button", { onclick: () => { closeModal("project-detail-modal"); openEdit(p.id); } }, "edit"),
         el("a", { href: p.url, target: "_blank" },
@@ -358,7 +344,10 @@ function openAdd() {
   $("project-form-title").textContent = "Add Project";
   $("project-id").value = "";
   $("project-form").reset();
+  $("autofill-status").textContent = "";
+  $("autofill-status").className = "autofill-status muted small";
   $("delete-project").classList.add("hidden");
+  refreshAutofillButton();
   openModal("project-form-modal");
 }
 
@@ -366,6 +355,9 @@ function openEdit(id) {
   const p = state.projects.find((x) => x.id === id);
   if (!p) return;
   $("project-form-title").textContent = "Edit Project";
+  $("autofill-status").textContent = "";
+  $("autofill-status").className = "autofill-status muted small";
+  refreshAutofillButton();
   $("project-id").value = p.id;
   $("project-name").value = p.title;
   $("project-category").value = p.category;
@@ -482,17 +474,18 @@ function geocodeLocation(loc) {
 
 function ensureMap() {
   if (state.map) return state.map;
-  state.map = L.map("map").setView(PHILLY_CENTER, 12);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  state.map = L.map("map", { zoomControl: true, attributionControl: true }).setView(PHILLY_CENTER, 12);
+  // CartoDB Positron — minimal light tiles. CSS filter warms them to the cream palette.
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     maxZoom: 19,
-    attribution: "© OpenStreetMap",
+    subdomains: "abcd",
+    attribution: "© OpenStreetMap, © CARTO",
   }).addTo(state.map);
   return state.map;
 }
 
 function renderMap() {
   const map = ensureMap();
-  // Clear old markers.
   for (const m of state.mapMarkers) map.removeLayer(m);
   state.mapMarkers = [];
 
@@ -500,18 +493,21 @@ function renderMap() {
   for (const p of list) {
     const coords = geocodeLocation(p.location);
     if (!coords) continue;
-    const catColor = CAT_COLORS[p.category]?.replace("var(--cat-", "").replace(")", "") || "other";
-    const marker = L.circleMarker(coords, {
-      radius: 9,
-      color: "#fff",
-      weight: 2,
-      fillColor: cssVarToHex(CAT_COLORS[p.category]),
-      fillOpacity: 0.9,
+    const stClass =
+      p.status === "Completed" ? "completed"
+      : p.status === "Cancelled" ? "cancelled"
+      : "";
+    const icon = L.divIcon({
+      className: "ptw-marker",
+      html: `<div class="ptw-marker-dot ${stClass}"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
     });
+    const marker = L.marker(coords, { icon });
     marker.bindPopup(
       `<strong>${escapeHtml(p.title)}</strong><br>` +
-      `<span style="color:#666;font-size:0.85em">${escapeHtml(p.category)} • ${escapeHtml(p.status)}</span><br>` +
-      `<a href="#" data-id="${p.id}" class="map-detail-link">View details →</a>`
+      `<em style="font-size:0.85em;color:var(--text-dim)">${escapeHtml(p.category)} · ${escapeHtml(p.status)}</em><br>` +
+      `<a href="#" data-id="${p.id}" class="map-detail-link">view details →</a>`
     );
     marker.on("popupopen", (e) => {
       const link = e.popup.getElement().querySelector(".map-detail-link");
@@ -520,32 +516,21 @@ function renderMap() {
     marker.addTo(map);
     state.mapMarkers.push(marker);
   }
-  // Force size recompute when revealed from hidden.
   setTimeout(() => map.invalidateSize(), 50);
-}
-
-function cssVarToHex(v) {
-  if (!v) return "#8b98a8";
-  const tmp = document.createElement("div");
-  tmp.style.color = v;
-  document.body.appendChild(tmp);
-  const computed = getComputedStyle(tmp).color;
-  document.body.removeChild(tmp);
-  const m = computed.match(/\d+/g);
-  if (!m) return "#8b98a8";
-  return "#" + m.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, "0")).join("");
 }
 
 // ---------- Settings modal ----------
 function openSettings() {
   $("repo-input").value = PTW.getRepo();
   $("token-input").value = PTW.getToken();
+  $("claude-input").value = PTW_Claude.getKey();
   openModal("settings-modal");
 }
 
 async function saveSettings() {
   const repo = $("repo-input").value.trim();
   const token = $("token-input").value.trim();
+  const claudeKey = $("claude-input").value.trim();
   if (!repo.match(/^[\w.-]+\/[\w.-]+$/)) {
     toast("Repository must be in the form owner/repo", "error");
     return;
@@ -556,10 +541,12 @@ async function saveSettings() {
   }
   PTW.setRepo(repo);
   PTW.setToken(token);
+  if (claudeKey) PTW_Claude.setKey(claudeKey);
   try {
     await PTW.verifyAccess();
     toast("Settings saved", "success");
     closeModal("settings-modal");
+    refreshAutofillButton();
     await reloadProjects();
   } catch (err) {
     toast(`Could not access repo: ${err.message}`, "error");
@@ -567,13 +554,91 @@ async function saveSettings() {
 }
 
 function clearSettings() {
-  if (!confirm("Clear your GitHub token and repo from this browser?")) return;
+  if (!confirm("Clear your GitHub token, repo, and Claude key from this browser?")) return;
   PTW.clear();
+  PTW_Claude.clear();
   $("repo-input").value = "";
   $("token-input").value = "";
+  $("claude-input").value = "";
   state.projects = [];
   renderTimeline();
+  refreshAutofillButton();
   toast("Settings cleared");
+}
+
+// ---------- Auto-fill ----------
+function refreshAutofillButton() {
+  const btn = $("autofill-btn");
+  if (!btn) return;
+  if (PTW_Claude.isConfigured()) {
+    btn.disabled = false;
+    btn.title = "Look up this project and pre-fill the form";
+  } else {
+    btn.disabled = true;
+    btn.title = "Add an Anthropic API key in Settings to enable auto-fill";
+  }
+}
+
+async function handleAutofill() {
+  const name = $("project-name").value.trim();
+  const status = $("autofill-status");
+  if (!name) {
+    status.textContent = "Type a project name first.";
+    status.className = "autofill-status error";
+    return;
+  }
+  if (!PTW_Claude.isConfigured()) {
+    status.textContent = "Add an Anthropic API key in Settings first.";
+    status.className = "autofill-status error";
+    return;
+  }
+  const btn = $("autofill-btn");
+  btn.classList.add("loading");
+  btn.textContent = "✦ searching…";
+  status.textContent = "Asking Claude to look this up…";
+  status.className = "autofill-status";
+
+  try {
+    const data = await PTW_Claude.lookupProject(name);
+
+    // If there's a clarifying question, ask the user before applying.
+    if (data.clarifyingQuestion && data.confidence !== "high") {
+      const ok = confirm(
+        `Claude suggests: "${data.confirmedName}"\n\n` +
+        `${data.clarifyingQuestion}\n\n` +
+        `Apply these suggestions anyway?`
+      );
+      if (!ok) {
+        status.textContent = "Cancelled — try a more specific name.";
+        status.className = "autofill-status";
+        return;
+      }
+    }
+
+    applyAutofill(data);
+    status.textContent = `Filled in from Claude (confidence: ${data.confidence || "unknown"}). Review and edit anything that looks off.`;
+    status.className = "autofill-status success";
+  } catch (err) {
+    status.textContent = err.message;
+    status.className = "autofill-status error";
+  } finally {
+    btn.classList.remove("loading");
+    btn.textContent = "✦ auto-fill";
+  }
+}
+
+function applyAutofill(data) {
+  if (data.confirmedName) $("project-name").value = data.confirmedName;
+  if (data.category && CATEGORIES.includes(data.category)) $("project-category").value = data.category;
+  if (data.status && STATUSES.includes(data.status)) $("project-status").value = data.status;
+  if (data.description) $("project-description").value = data.description;
+  if (data.startDate) $("project-start").value = data.startDate;
+  if (data.completionDate) $("project-completion").value = data.completionDate;
+  if (data.location) $("project-location").value = data.location;
+  if (data.searchTerms) $("project-search-terms").value = data.searchTerms;
+  if (Array.isArray(data.links) && data.links.length) {
+    $("project-links").value = data.links.join("\n");
+  }
 }
 
 // ---------- Modal helpers ----------
@@ -634,6 +699,8 @@ function init() {
   });
   $("project-form").addEventListener("submit", handleSaveProject);
   $("delete-project").addEventListener("click", handleDeleteProject);
+  $("autofill-btn").addEventListener("click", handleAutofill);
+  refreshAutofillButton();
   $("view-timeline").addEventListener("click", () => setView("timeline"));
   $("view-map").addEventListener("click", () => setView("map"));
 

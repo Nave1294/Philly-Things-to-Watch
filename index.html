@@ -80,9 +80,18 @@
         Needs <code>repo</code> scope (or <code>public_repo</code> if your repo is public).
         Create one at <a href="https://github.com/settings/tokens/new?scopes=repo&description=Philly%20Things%20to%20Watch" target="_blank">github.com/settings/tokens</a>.
       </p>
+
+      <label for="claude-input">Anthropic API Key <span class="muted small">(optional, for auto-fill)</span></label>
+      <input id="claude-input" type="password" placeholder="sk-ant-..." />
+      <p class="muted small">
+        When set, the "✦ auto-fill" button on the Add Project form uses Claude with web search to look up
+        a project and pre-fill the form. Get a key at
+        <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
+      </p>
+
       <div class="modal-actions">
-        <button id="save-settings" class="primary">Save</button>
-        <button id="clear-settings">Clear</button>
+        <button id="save-settings" class="primary">save</button>
+        <button id="clear-settings">clear</button>
       </div>
     </div>
   </div>
@@ -95,7 +104,11 @@
       <form id="project-form">
         <input type="hidden" id="project-id" />
         <label>Name</label>
-        <input id="project-name" type="text" required placeholder="e.g. Roosevelt Boulevard Subway" />
+        <div class="name-row">
+          <input id="project-name" type="text" required placeholder="e.g. Roosevelt Boulevard Subway" />
+          <button type="button" id="autofill-btn" class="autofill-btn" title="Auto-fill from Claude">✦ auto-fill</button>
+        </div>
+        <p id="autofill-status" class="autofill-status muted small"></p>
 
         <label>Category</label>
         <select id="project-category" required>
@@ -164,6 +177,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/api.js"></script>
   <script src="js/news.js"></script>
+  <script src="js/claude.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
