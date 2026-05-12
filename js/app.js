@@ -235,7 +235,10 @@ function renderTimeline() {
     }
   }
 
-  // Year markers: positioned at the average x of all events in each year.
+  // Year markers: positioned at the leftmost event in each year, so the
+  // label sits at the *start* of the year's span rather than its centroid.
+  // (A centroid drifts right when later events in the year exist, which made
+  // "2026" appear to the right of today even though today is May.)
   const eventsByYear = new Map();
   for (const ev of enriched) {
     const yr = new Date(ev.ts).getFullYear();
@@ -244,7 +247,7 @@ function renderTimeline() {
   }
   const yearMarkers = [...eventsByYear.entries()].map(([yr, xs]) => ({
     year: yr,
-    x: xs.reduce((a, b) => a + b, 0) / xs.length,
+    x: Math.min(...xs),
   }));
 
   // ---------- Lane-pack callouts ----------
