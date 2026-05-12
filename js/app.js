@@ -1115,7 +1115,7 @@ async function maybeRunWeeklyRefresh() {
 }
 
 async function refreshSingleProject(project) {
-  const data = await PTW_Claude.lookupProject(project.title);
+  const data = await PTW_Claude.refreshProject(project);
   const today = new Date().toISOString().slice(0, 10);
 
   const newStatus = STATUSES.includes(data.status) ? data.status : project.status;

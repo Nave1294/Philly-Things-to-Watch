@@ -61,7 +61,7 @@ The goal is something geocodable — never just a vague district like "Center Ci
 
 Use empty strings or empty arrays for unknown fields.`;
 
-  async function lookupProject(name) {
+  async function callClaude(systemPrompt, userMessage) {
     if (!getKey()) throw new Error("Claude API key not configured. Add one in Settings.");
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -75,16 +75,13 @@ Use empty strings or empty arrays for unknown fields.`;
       body: JSON.stringify({
         model: getModel(),
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         tools: [{
           type: "web_search_20250305",
           name: "web_search",
           max_uses: 5,
         }],
-        messages: [{
-          role: "user",
-          content: `Look up this Philadelphia-area project: "${name}". Return the JSON described in the system prompt.`,
-        }],
+        messages: [{ role: "user", content: userMessage }],
       }),
     });
 
@@ -100,15 +97,10 @@ Use empty strings or empty arrays for unknown fields.`;
 
     const json = await res.json();
     const textBlocks = (json.content || []).filter((b) => b.type === "text");
-    if (!textBlocks.length) {
-      throw new Error("Claude returned no text response");
-    }
+    if (!textBlocks.length) throw new Error("Claude returned no text response");
     const text = textBlocks.map((b) => b.text).join("\n").trim();
-
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Claude's response was not JSON. Try a more specific project name.");
-    }
+    if (!jsonMatch) throw new Error("Claude's response was not JSON.");
     try {
       return JSON.parse(jsonMatch[0]);
     } catch (e) {
@@ -116,5 +108,71 @@ Use empty strings or empty arrays for unknown fields.`;
     }
   }
 
-  return { getKey, setKey, getModel, setModel, isConfigured, clear, lookupProject };
+  async function lookupProject(name) {
+    return callClaude(
+      SYSTEM_PROMPT,
+      `Look up this Philadelphia-area project: "${name}". Return the JSON described in the system prompt.`
+    );
+  }
+
+  const REFRESH_SYSTEM_PROMPT = `You help track Philadelphia-area projects and find the latest updates on them.
+
+You will be given an existing project record. Your job is to search for the most current information about this project and return updated data.
+
+Focus specifically on:
+- Any milestone dates that have been announced, changed, or confirmed since the project was last checked
+- Status changes (groundbreaking happened, approval granted, project delayed, completed, cancelled)
+- Updated completion estimates
+- New phases that were announced or that have now passed
+- Any significant news from the past 6 months
+
+Search using the project name AND all of its search terms. Prioritize sources from the past year, especially the past 6 months. Look for recent news articles, official announcements, and project websites.
+
+Respond with ONLY a JSON object — no markdown fences, no prose before or after. Use exactly this schema:
+
+{
+  "confirmedName": "<official or commonly-used project name>",
+  "category": "<one of: Transportation | Development | Parks & Public Space | Trials & Legal | Politics | Sports & Stadiums | Events | Other>",
+  "status": "<one of: Proposed | Planning | Approved | In Progress | On Hold | Completed | Cancelled>",
+  "description": "<2-3 sentence factual summary reflecting the most current state>",
+  "startDate": "<YYYY-MM-DD or empty string>",
+  "completionDate": "<YYYY-MM-DD estimated completion or empty string>",
+  "location": "<most specific location possible — full street address preferred>",
+  "searchTerms": "<comma-separated phrases useful for tracking future news>",
+  "links": ["<2-4 relevant URLs prioritizing the most recent news articles and official sources>"],
+  "phases": [
+    {"name": "<short phase name>", "date": "<YYYY-MM-DD>"}
+  ],
+  "confidence": "<high | medium | low>",
+  "clarifyingQuestion": null
+}
+
+For "phases": return ALL known milestones — both past and future. Merge what you already know (provided below) with any newly discovered dates. If a previously estimated date has changed, use the updated date. Never invent dates — only include dates you can verify or that are officially projected.
+
+Use empty strings or empty arrays for fields where nothing new was found.`;
+
+  async function refreshProject(project) {
+    const existingPhases = Array.isArray(project.phases) && project.phases.length
+      ? project.phases.map((p) => `  ${p.date}: ${p.name}`).join("\n")
+      : "  (none recorded yet)";
+
+    const lastChecked = project.lastAutoRefresh
+      ? `Last checked: ${project.lastAutoRefresh}.`
+      : "This project has not been auto-checked before.";
+
+    const userMessage =
+      `Find the latest updates for this Philadelphia-area project.\n\n` +
+      `Project name: "${project.title}"\n` +
+      `Search terms: ${project.searchTerms || project.title}\n` +
+      `Current status: ${project.status}\n` +
+      `${lastChecked}\n\n` +
+      `Currently recorded phases:\n${existingPhases}\n\n` +
+      `Search for recent news and announcements. Return the full updated JSON per the system prompt, ` +
+      `including all known phases (existing + any newly found). Focus on finding information published ` +
+      `after ${project.lastAutoRefresh || "the past year"}.`;
+
+    return callClaude(REFRESH_SYSTEM_PROMPT, userMessage);
+  }
+
+  return { getKey, setKey, getModel, setModel, isConfigured, clear, lookupProject, refreshProject };
 })();
