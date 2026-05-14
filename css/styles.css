@@ -956,15 +956,13 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
 .share-link {
   display: inline-flex;
   align-items: center;
-  font-family: var(--sans);
-  font-size: 0.95rem;
-  padding: 0.55rem 1.25rem;
+  justify-content: center;
+  padding: 0.45rem 0.85rem;
   border-radius: 999px;
   border: 1px solid var(--border);
   color: var(--text);
   text-decoration: none;
   transition: all 0.18s ease;
-  letter-spacing: 0.01em;
   background: transparent;
 }
 .share-link:hover {
