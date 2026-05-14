@@ -952,6 +952,27 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
 .autofill-status.success { color: var(--success); }
 .autofill-status.error { color: var(--danger); }
 
+/* ------- Share link button ------- */
+.share-link {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  padding: 0.55rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.18s ease;
+  letter-spacing: 0.01em;
+  background: transparent;
+}
+.share-link:hover {
+  background: var(--bg-soft);
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
 /* ------- Misc ------- */
 code {
   font-family: 'SF Mono', Monaco, monospace;
