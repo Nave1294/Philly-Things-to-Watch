@@ -12,28 +12,39 @@ const PTW = (() => {
   const APP_LABEL = "ptw-tracked";
 
   function getToken() { return localStorage.getItem(LS_TOKEN) || ""; }
-  function getRepo() { return localStorage.getItem(LS_REPO) || ""; }
+  function getRepo() {
+    const stored = localStorage.getItem(LS_REPO);
+    if (stored) return stored;
+    // Read-only fallback: derive the repo from the GitHub Pages URL so any
+    // visitor can view the timeline without configuring anything.
+    if (typeof location !== "undefined" && location.hostname.endsWith(".github.io")) {
+      const owner = location.hostname.split(".")[0];
+      const repo = location.pathname.split("/").filter(Boolean)[0];
+      if (owner && repo) return `${owner}/${repo}`;
+    }
+    return "";
+  }
   function setToken(t) { localStorage.setItem(LS_TOKEN, t); }
   function setRepo(r) { localStorage.setItem(LS_REPO, r); }
   function clear() {
     localStorage.removeItem(LS_TOKEN);
     localStorage.removeItem(LS_REPO);
   }
-  function isConfigured() { return !!(getToken() && getRepo()); }
+  function canRead() { return !!getRepo(); }
+  function canWrite() { return !!(getRepo() && getToken()); }
+  // Existing callers use isConfigured() to mean "fully set up for editing".
+  function isConfigured() { return canWrite(); }
 
   async function gh(path, options = {}) {
     const token = getToken();
-    if (!token) throw new Error("No GitHub token configured");
-    const res = await fetch(`https://api.github.com${path}`, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(options.headers || {}),
-      },
-    });
+    const headers = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {}),
+    };
+    const res = await fetch(`https://api.github.com${path}`, { ...options, headers });
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`GitHub API ${res.status}: ${text}`);
@@ -236,7 +247,8 @@ const PTW = (() => {
   }
 
   return {
-    getToken, getRepo, setToken, setRepo, clear, isConfigured,
+    getToken, getRepo, setToken, setRepo, clear,
+    isConfigured, canRead, canWrite,
     listProjects, createProject, updateProject, deleteProject,
     listUpdates, addUpdate, verifyAccess,
   };

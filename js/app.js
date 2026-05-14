@@ -422,8 +422,10 @@ async function openDetail(id) {
       el("h2", { class: "detail-title" }, p.title),
       el("div", { class: "card-meta" }, categoryBadge(p.category), statusBadge(p.status)),
       el("div", { class: "detail-actions" },
-        el("button", { onclick: () => { closeModal("project-detail-modal"); openEdit(p.id); } }, "edit"),
-        PTW_Claude.isConfigured()
+        PTW.canWrite()
+          ? el("button", { onclick: () => { closeModal("project-detail-modal"); openEdit(p.id); } }, "edit")
+          : null,
+        PTW.canWrite() && PTW_Claude.isConfigured()
           ? el("button", { onclick: () => manualRefreshProject(p.id), title: "Ask Claude to re-check this project right now" }, "✦ refresh now")
           : null,
         el("a", { href: p.url, target: "_blank" },
@@ -1212,14 +1214,30 @@ function setView(v) {
   if (v === "map") renderMap();
 }
 
+// ---------- Read-only / authenticated UI mode ----------
+// Visitors without a GitHub token get a view-only experience: timeline and
+// map render normally, but write-only controls (Add, Edit, Delete, Refresh)
+// stay hidden so the UI doesn't dangle dead buttons.
+function applyAuthMode() {
+  const canWrite = PTW.canWrite();
+  const addBtn = $("add-project-btn");
+  if (addBtn) addBtn.classList.toggle("hidden", !canWrite);
+  const empty = $("empty-state");
+  if (empty && !empty.classList.contains("hidden") && state.projects.length === 0 && PTW.canRead()) {
+    empty.innerHTML = canWrite
+      ? `<h2>No projects yet</h2><p>Click <strong>+ Add Project</strong> to start tracking something happening in Philly.</p>`
+      : `<h2>Nothing to watch yet</h2><p>The owner hasn't added any projects to track.</p>`;
+  }
+}
+
 // ---------- Data loading ----------
 async function reloadProjects() {
-  if (!PTW.isConfigured()) {
+  if (!PTW.canRead()) {
     $("loading").classList.add("hidden");
     $("empty-state").classList.remove("hidden");
     $("empty-state").innerHTML = `
       <h2>Welcome to Philly Things to Watch</h2>
-      <p>Click <strong>⚙ Settings</strong> in the top-right to connect your GitHub repo so we can start tracking projects.</p>
+      <p>Click <strong>⚙ Settings</strong> in the top-right to connect a GitHub repo so we can load projects.</p>
     `;
     return;
   }
@@ -1232,6 +1250,7 @@ async function reloadProjects() {
   } finally {
     $("loading").classList.add("hidden");
   }
+  applyAuthMode();
 }
 
 async function loadAndMaybeRefresh() {
@@ -1258,7 +1277,7 @@ function init() {
   $("clear-settings").addEventListener("click", clearSettings);
   $("clear-projects").addEventListener("click", clearAllProjects);
   $("add-project-btn").addEventListener("click", () => {
-    if (!PTW.isConfigured()) { openSettings(); return; }
+    if (!PTW.canWrite()) { openSettings(); return; }
     openAdd();
   });
   $("project-form").addEventListener("submit", handleSaveProject);
@@ -1290,6 +1309,7 @@ function init() {
   $("refresh-banner-close").addEventListener("click", hideBanner);
 
   renderFilterChips();
+  applyAuthMode();
   loadAndMaybeRefresh();
 }
 
