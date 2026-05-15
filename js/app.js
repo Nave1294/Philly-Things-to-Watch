@@ -274,6 +274,13 @@ function renderTimeline() {
 
   // ---------- Render ----------
   const tl = el("div", { class: "tl" });
+  // Convert vertical wheel scrolling into horizontal panning so the user
+  // can move along the timeline with a normal mouse wheel.
+  tl.addEventListener("wheel", (e) => {
+    if (e.deltaY === 0) return;
+    e.preventDefault();
+    tl.scrollLeft += e.deltaY;
+  }, { passive: false });
   const content = el("div", {
     class: "tl-content",
     style: `width:${totalWidth}px;height:${aboveHeight + yearsHeight + axisHeight + belowHeight}px`,
