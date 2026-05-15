@@ -955,24 +955,91 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
   color: #ffffff;
 }
 
-/* ------- Share link button ------- */
-.share-link {
-  display: inline-flex;
+/* ------- Floating explore + add buttons (mirrors Goings-On) ------- */
+.explore-btn {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--bg-elev);
+  color: var(--accent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.09), 0 1px 3px rgba(0, 0, 0, 0.06);
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.45rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--text);
   text-decoration: none;
-  transition: all 0.18s ease;
-  background: var(--bg-elev);
+  z-index: 50;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.share-link:hover {
-  background: var(--bg-soft);
-  border-color: rgba(0, 0, 0, 0.2);
-  color: var(--text);
+.explore-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.13), 0 2px 4px rgba(0, 0, 0, 0.08);
 }
+.explore-btn svg { width: 26px; height: 26px; stroke: var(--accent); }
+.explore-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  background: var(--text);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  width: 220px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.explore-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 18px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--text);
+}
+.explore-btn:hover .explore-tooltip,
+.explore-btn:focus .explore-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.add-btn {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 8px 22px rgba(0, 113, 227, 0.35), 0 1px 3px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.add-btn:hover {
+  background: var(--accent);
+  border: none;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 113, 227, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.add-btn svg { width: 28px; height: 28px; stroke: #ffffff; }
 
 /* ------- Misc ------- */
 code {
@@ -995,4 +1062,9 @@ a { color: var(--accent); }
   .modal-content { padding: 2rem 1.25rem 1.5rem; border-radius: 16px; }
   .detail-section h3::before,
   .detail-section h3::after { width: 15%; }
+  .explore-btn, .add-btn { width: 52px; height: 52px; bottom: 1rem; }
+  .explore-btn { left: 1rem; }
+  .add-btn { right: 1rem; }
+  .explore-btn svg, .add-btn svg { width: 22px; height: 22px; }
+  .explore-tooltip { width: 200px; font-size: 0.74rem; }
 }
