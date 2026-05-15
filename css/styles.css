@@ -935,6 +935,26 @@ main { padding: 0 1.5rem 3rem; max-width: 1280px; margin: 0 auto; }
 .autofill-status.success { color: var(--success); }
 .autofill-status.error { color: var(--danger); }
 
+/* ------- Today button ------- */
+.today-btn {
+  align-self: flex-start;
+  padding: 0.45rem 1.1rem;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: all 0.18s ease;
+}
+.today-btn:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 /* ------- Share link button ------- */
 .share-link {
   display: inline-flex;

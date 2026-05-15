@@ -39,7 +39,6 @@ const state = {
   activeCategories: new Set(CATEGORIES),
   activeStatuses: new Set(STATUSES),
   search: "",
-  sort: "updated-desc",
   view: "timeline",
   map: null,
   mapMarkers: [],
@@ -123,33 +122,21 @@ function toggleSet(set, val, cb) {
 // ---------- Timeline rendering ----------
 function filteredProjects() {
   const q = state.search.toLowerCase().trim();
-  let list = state.projects.filter((p) =>
+  return state.projects.filter((p) =>
     state.activeCategories.has(p.category) &&
     state.activeStatuses.has(p.status) &&
     (!q || p.title.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q) || (p.location || "").toLowerCase().includes(q))
   );
-  switch (state.sort) {
-    case "updated-desc":
-      list.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-      break;
-    case "created-desc":
-      list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      break;
-    case "created-asc":
-      list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      break;
-    case "completion-asc":
-      list.sort((a, b) => {
-        if (!a.completionDate) return 1;
-        if (!b.completionDate) return -1;
-        return new Date(a.completionDate) - new Date(b.completionDate);
-      });
-      break;
-    case "status":
-      list.sort((a, b) => STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status));
-      break;
-  }
-  return list;
+}
+
+function scrollToToday() {
+  if (state.view !== "timeline") setView("timeline");
+  const tl = document.querySelector(".tl");
+  const todayEl = document.querySelector(".tl-today");
+  if (!tl || !todayEl) return;
+  const todayX = parseFloat(todayEl.style.left);
+  if (!Number.isFinite(todayX)) return;
+  tl.scrollTo({ left: Math.max(0, todayX - tl.clientWidth / 2), behavior: "smooth" });
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -1283,10 +1270,7 @@ function init() {
     state.search = e.target.value;
     renderTimeline();
   });
-  $("sort-select").addEventListener("change", (e) => {
-    state.sort = e.target.value;
-    renderTimeline();
-  });
+  $("today-btn").addEventListener("click", scrollToToday);
 
   // Generic close button handling.
   document.querySelectorAll("[data-close]").forEach((btn) => {
