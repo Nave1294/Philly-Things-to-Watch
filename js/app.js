@@ -105,20 +105,12 @@ function toast(message, kind = "") {
 // ---------- Filter chips ----------
 function renderFilterChips() {
   const catWrap = $("category-filters");
-  const statusWrap = $("status-filters");
   catWrap.innerHTML = "";
-  statusWrap.innerHTML = "";
   for (const c of CATEGORIES) {
     catWrap.append(el("div", {
       class: state.activeCategories.has(c) ? "chip active" : "chip",
       onclick: () => toggleSet(state.activeCategories, c, renderFilterChips),
     }, c));
-  }
-  for (const s of STATUSES) {
-    statusWrap.append(el("div", {
-      class: state.activeStatuses.has(s) ? "chip active" : "chip",
-      onclick: () => toggleSet(state.activeStatuses, s, renderFilterChips),
-    }, s));
   }
   renderTimeline();
 }
