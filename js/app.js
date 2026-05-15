@@ -1201,17 +1201,17 @@ function setView(v) {
 }
 
 // ---------- Read-only / authenticated UI mode ----------
-// Visitors without a GitHub token get a view-only experience: timeline and
-// map render normally, but write-only controls (Add, Edit, Delete, Refresh)
-// stay hidden so the UI doesn't dangle dead buttons.
+// Visitors without a GitHub token get a view-only experience. The floating
+// Add Project button stays visible for everyone — clicking it without a
+// token simply opens Settings (handled in init), which lets the owner add
+// projects from any device. Edit / Delete / Refresh in the detail modal
+// only render when canWrite, which is gated where they're built.
 function applyAuthMode() {
   const canWrite = PTW.canWrite();
-  const addBtn = $("add-project-btn");
-  if (addBtn) addBtn.classList.toggle("hidden", !canWrite);
   const empty = $("empty-state");
   if (empty && !empty.classList.contains("hidden") && state.projects.length === 0 && PTW.canRead()) {
     empty.innerHTML = canWrite
-      ? `<h2>No projects yet</h2><p>Click <strong>+ Add Project</strong> to start tracking something happening in Philly.</p>`
+      ? `<h2>No projects yet</h2><p>Tap the <strong>+</strong> button to start tracking something happening in Philly.</p>`
       : `<h2>Nothing to watch yet</h2><p>The owner hasn't added any projects to track.</p>`;
   }
 }
