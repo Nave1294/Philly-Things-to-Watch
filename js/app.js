@@ -1208,6 +1208,8 @@ function setView(v) {
 // only render when canWrite, which is gated where they're built.
 function applyAuthMode() {
   const canWrite = PTW.canWrite();
+  const addBtn = $("add-project-btn");
+  if (addBtn) addBtn.classList.toggle("hidden", !canWrite);
   const empty = $("empty-state");
   if (empty && !empty.classList.contains("hidden") && state.projects.length === 0 && PTW.canRead()) {
     empty.innerHTML = canWrite
